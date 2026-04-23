@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">舆情应急处置 Agent 总览</title>
+  <desc id="desc">展示社媒样本、客服工单、升级规则、产品目录和 incident log 经过 normalize、risk-score、escalation 三段链路后生成双 artifact。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#081422"/>
+      <stop offset="100%" stop-color="#0d2338"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#35d4ff"/>
+      <stop offset="100%" stop-color="#5ef0d0"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <style>
+      .title { font: 800 30px "PingFang SC","Microsoft YaHei",sans-serif; fill: #f6f8fb; }
+      .label { font: 700 15px "SFMono-Regular",Menlo,monospace; letter-spacing: .08em; text-transform: uppercase; fill: #35d4ff; }
+      .body { font: 600 24px "PingFang SC","Microsoft YaHei",sans-serif; fill: #f6f8fb; }
+      .sub { font: 500 18px "PingFang SC","Microsoft YaHei",sans-serif; fill: #a8c0d2; }
+      .note { font: 600 18px "PingFang SC","Microsoft YaHei",sans-serif; fill: #d9f7ff; }
+      .chip { fill: #0f2a40; stroke: #2a5873; stroke-width: 2; }
+      .card { fill: #10263a; stroke: #335f7d; stroke-width: 2; filter: url(#shadow); }
+      .core { fill: #112d46; stroke: url(#cyan); stroke-width: 3; filter: url(#shadow); }
+      .out { fill: #0f2942; stroke: #49e0aa; stroke-width: 2; filter: url(#shadow); }
+      .arrow { stroke: #58d7ff; stroke-width: 4; fill: none; marker-end: url(#arrow); opacity: .95; }
+      .arrow-soft { stroke: #ffd067; stroke-width: 3; fill: none; marker-end: url(#arrow2); opacity: .92; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#58d7ff"/>
+    </marker>
+    <marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#ffd067"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="760" rx="28" fill="url(#bg)"/>
+  <rect x="28" y="28" width="1144" height="704" rx="26" fill="none" stroke="#244762" stroke-width="2"/>
+
+  <text x="64" y="78" class="label">Incident Response Overview</text>
+  <text x="64" y="122" class="title">从多源输入到 P1 决策：Agent 在 just-bash 里的完整链路</text>
+
+  <rect x="62" y="92" width="1076" height="604" rx="30" fill="rgba(10,22,35,.12)" stroke="#1d3b52" stroke-width="2"/>
+  <rect x="442" y="144" width="316" height="72" rx="18" class="chip"/>
+  <text x="600" y="190" class="note" text-anchor="middle">just-bash 工作台：shell + 文件系统 + guard</text>
+
+  <g>
+    <rect x="72" y="182" width="240" height="112" rx="22" class="card"/>
+    <text x="96" y="220" class="label">Input 01</text>
+    <text x="96" y="256" class="body">社媒样本 JSONL</text>
+    <text x="96" y="284" class="sub">帖子 / reach / 平台 / 注入样本</text>
+
+    <rect x="72" y="336" width="240" height="112" rx="22" class="card"/>
+    <text x="96" y="374" class="label">Input 02</text>
+    <text x="96" y="410" class="body">客服工单 CSV</text>
+    <text x="96" y="438" class="sub">priority / category / support spike</text>
+
+    <rect x="72" y="490" width="240" height="112" rx="22" class="card"/>
+    <text x="96" y="528" class="label">Input 03</text>
+    <text x="96" y="564" class="body">升级规则 YAML</text>
+    <text x="96" y="592" class="sub">P1 阈值 / 强制主题 / SLA</text>
+  </g>
+
+  <g>
+    <rect x="888" y="220" width="240" height="112" rx="22" class="card"/>
+    <text x="912" y="258" class="label">Context 04</text>
+    <text x="912" y="294" class="body">产品目录 JSON</text>
+    <text x="912" y="322" class="sub">SKU / owner / launch channel</text>
+
+    <rect x="888" y="384" width="240" height="112" rx="22" class="card"/>
+    <text x="912" y="422" class="label">Context 05</text>
+    <text x="912" y="458" class="body">Incident Log</text>
+    <text x="912" y="486" class="sub">baseline jump / checkout alert</text>
+  </g>
+
+  <g>
+    <rect x="390" y="234" width="420" height="108" rx="24" class="core"/>
+    <text x="420" y="272" class="label">Stage 01</text>
+    <text x="420" y="306" class="body">normalize.ts</text>
+    <text x="420" y="332" class="sub">把 JSONL / CSV 统一成 Incident Signals</text>
+
+    <rect x="390" y="376" width="420" height="108" rx="24" class="core"/>
+    <text x="420" y="414" class="label">Stage 02</text>
+    <text x="420" y="448" class="body">risk-score.ts</text>
+    <text x="420" y="474" class="sub">负向占比、平台扩散、关键工单、证据链</text>
+
+    <rect x="390" y="518" width="420" height="108" rx="24" class="core"/>
+    <text x="420" y="556" class="label">Stage 03</text>
+    <text x="420" y="590" class="body">escalation.ts</text>
+    <text x="420" y="616" class="sub">根据 YAML 规则输出 P1 / P2 / Monitor</text>
+  </g>
+
+  <g>
+    <rect x="382" y="654" width="202" height="52" rx="18" class="out"/>
+    <text x="483" y="686" class="note" text-anchor="middle">escalation-decision.json</text>
+
+    <rect x="616" y="654" width="202" height="52" rx="18" class="out"/>
+    <text x="717" y="686" class="note" text-anchor="middle">incident-brief.md</text>
+  </g>
+
+  <path d="M312 238 C348 238 356 252 390 270" class="arrow"/>
+  <path d="M312 392 C348 392 356 392 390 430" class="arrow"/>
+  <path d="M312 546 C348 546 356 532 390 570" class="arrow"/>
+  <path d="M888 276 C850 276 836 286 810 288" class="arrow"/>
+  <path d="M888 440 C850 440 836 436 810 430" class="arrow"/>
+  <path d="M600 342 L600 376" class="arrow-soft"/>
+  <path d="M600 484 L600 518" class="arrow-soft"/>
+  <path d="M548 626 L482 654" class="arrow-soft"/>
+  <path d="M652 626 L718 654" class="arrow-soft"/>
+
+  <text x="62" y="720" class="sub">简图说明：输入层和上下文层共同喂给三段业务代码，最后生成双 artifact，并由 guard / review 接住。</text>
+</svg>

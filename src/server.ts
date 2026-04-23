@@ -33,6 +33,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET") {
+      const served = await serveStaticAsset(url.pathname, res);
+      if (served) return;
+    }
+
     if (req.method === "POST" && url.pathname === "/api/run") {
       const body = await readJson(req);
       const mode = body.mode === "scripted" ? "scripted" : "live";
@@ -109,4 +114,47 @@ async function readJson(req: http.IncomingMessage) {
 
 function isAbortError(error: unknown) {
   return error instanceof Error && error.name === "AbortError";
+}
+
+async function serveStaticAsset(pathname: string, res: http.ServerResponse) {
+  const cleanedPath = pathname.replace(/^\/+/, "");
+  if (!cleanedPath) return false;
+
+  const filePath = path.resolve(publicDir, cleanedPath);
+  if (!filePath.startsWith(publicDir + path.sep)) return false;
+
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) return false;
+
+    const content = await fs.readFile(filePath);
+    res.writeHead(200, { "content-type": contentTypeFor(filePath) });
+    res.end(content);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function contentTypeFor(filePath: string) {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case ".svg":
+      return "image/svg+xml; charset=utf-8";
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".js":
+      return "text/javascript; charset=utf-8";
+    case ".json":
+      return "application/json; charset=utf-8";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    default:
+      return "application/octet-stream";
+  }
 }

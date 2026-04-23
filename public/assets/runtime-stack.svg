@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">just-bash 运行时能力栈</title>
+  <desc id="desc">展示模型与 AI SDK 之下的 Bash、文件系统、自定义命令、AST 插桩和执行限制等层次。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#07131f"/>
+      <stop offset="100%" stop-color="#0d2135"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#34d3ff"/>
+      <stop offset="100%" stop-color="#4fe3a4"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+    <style>
+      .label { font: 700 14px "SFMono-Regular",Menlo,monospace; fill: #34d3ff; letter-spacing: .08em; }
+      .title { font: 800 31px "PingFang SC","Microsoft YaHei",sans-serif; fill: #f6f8fb; }
+      .h { font: 700 24px "PingFang SC","Microsoft YaHei",sans-serif; fill: #f6f8fb; }
+      .sub { font: 500 18px "PingFang SC","Microsoft YaHei",sans-serif; fill: #acc4d5; }
+      .chip { font: 700 16px "PingFang SC","Microsoft YaHei",sans-serif; fill: #d9f7ff; }
+      .layer { filter: url(#shadow); }
+    </style>
+  </defs>
+
+  <rect width="1200" height="760" rx="28" fill="url(#bg)"/>
+  <text x="66" y="82" class="label">Runtime Stack</text>
+  <text x="66" y="124" class="title">just-bash 给 agent 的不是单点 shell，而是一整层工程运行时</text>
+
+  <g class="layer">
+    <rect x="300" y="150" width="600" height="86" rx="24" fill="#11293f" stroke="url(#glow)" stroke-width="3"/>
+    <text x="600" y="194" class="h" text-anchor="middle">模型 / AI SDK / Harness</text>
+    <text x="600" y="220" class="sub" text-anchor="middle">决定动作，但必须走受控的工具入口</text>
+  </g>
+
+  <g class="layer">
+    <rect x="240" y="250" width="720" height="78" rx="22" fill="#14314b" stroke="#3b6a86" stroke-width="2.5"/>
+    <text x="600" y="296" class="h" text-anchor="middle">Bash + Unix Action Space</text>
+    <text x="600" y="320" class="sub" text-anchor="middle">grep / jq / find / 重定向 / 管道 / here-doc</text>
+  </g>
+
+  <g class="layer">
+    <rect x="200" y="342" width="800" height="84" rx="22" fill="#123049" stroke="#46738e" stroke-width="2.5"/>
+    <text x="600" y="388" class="h" text-anchor="middle">Filesystem Layer</text>
+    <text x="600" y="412" class="sub" text-anchor="middle">InMemoryFs / OverlayFs / MountableFs / ReadWriteFs</text>
+  </g>
+
+  <g class="layer">
+    <rect x="160" y="440" width="880" height="84" rx="22" fill="#122c43" stroke="#51869e" stroke-width="2.5"/>
+    <text x="600" y="486" class="h" text-anchor="middle">Custom Commands</text>
+    <text x="600" y="510" class="sub" text-anchor="middle">incident-analyze / incident-guard / npm test / lint / audit</text>
+  </g>
+
+  <g class="layer">
+    <rect x="120" y="538" width="960" height="92" rx="22" fill="#10263b" stroke="#5e9ab2" stroke-width="2.5"/>
+    <text x="600" y="586" class="h" text-anchor="middle">AST Pipeline + Instrumentation</text>
+    <text x="600" y="612" class="sub" text-anchor="middle">parse / serialize / CommandCollector / TeePlugin / 审计元数据</text>
+  </g>
+
+  <g class="layer">
+    <rect x="86" y="650" width="1028" height="56" rx="18" fill="#102133" stroke="#49e0aa" stroke-width="2.5"/>
+    <text x="600" y="686" class="chip" text-anchor="middle">执行边界：无网络 / Host 不可见 / 命令上限 / 循环上限 / 长输出限制</text>
+  </g>
+
+  <g>
+    <rect x="64" y="246" width="142" height="104" rx="20" fill="#0f2437" stroke="#2d556d" stroke-width="2"/>
+    <text x="135" y="286" class="label" text-anchor="middle">Feedback</text>
+    <text x="135" y="318" class="chip" text-anchor="middle">stdout</text>
+    <text x="135" y="342" class="chip" text-anchor="middle">stderr</text>
+
+    <rect x="1006" y="246" width="132" height="104" rx="20" fill="#0f2437" stroke="#2d556d" stroke-width="2"/>
+    <text x="1072" y="286" class="label" text-anchor="middle">Feedback</text>
+    <text x="1072" y="320" class="chip" text-anchor="middle">exitCode</text>
+    <text x="1072" y="344" class="chip" text-anchor="middle">artifact</text>
+  </g>
+
+  <text x="66" y="730" class="sub">简图说明：上层是模型与 harness，下层是 just-bash 暴露给模型的动作空间、文件系统、命令扩展、AST 插桩和边界控制。</text>
+</svg>
