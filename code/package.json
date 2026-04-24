@@ -1,0 +1,25 @@
+{
+  "name": "just-bash-agent-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/cli.ts",
+    "web": "tsx src/server.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "latest",
+    "@ai-sdk/openai": "latest",
+    "ai": "latest",
+    "dotenv": "latest",
+    "just-bash": "latest",
+    "sql.js": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}

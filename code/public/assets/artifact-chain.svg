@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">双 artifact 交付链</title>
+  <desc id="desc">展示结构化决策 JSON 和管理层简报 Markdown 如何通过 guard 检查并流向人类、CI 和下一轮 agent。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#07131f"/>
+      <stop offset="100%" stop-color="#0d2235"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <style>
+      .label { font: 700 14px "SFMono-Regular",Menlo,monospace; fill: #34d3ff; letter-spacing: .08em; }
+      .title { font: 800 31px "PingFang SC","Microsoft YaHei",sans-serif; fill: #f6f8fb; }
+      .h { font: 700 24px "PingFang SC","Microsoft YaHei",sans-serif; fill: #f6f8fb; }
+      .sub { font: 500 18px "PingFang SC","Microsoft YaHei",sans-serif; fill: #acc4d5; }
+      .chip { font: 700 18px "PingFang SC","Microsoft YaHei",sans-serif; fill: #e4fbff; }
+      .file { filter: url(#shadow); fill: #10283c; stroke: #3b6883; stroke-width: 2.4; }
+      .guard { filter: url(#shadow); fill: #10263b; stroke: #49e0aa; stroke-width: 2.4; }
+      .target { filter: url(#shadow); fill: #122d44; stroke: #5f8ea8; stroke-width: 2.2; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#58d7ff"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="760" rx="28" fill="url(#bg)"/>
+  <text x="66" y="82" class="label">Reviewable Output</text>
+  <text x="66" y="124" class="title">双 artifact 让输出从“聊天回复”变成“工程对象”</text>
+
+  <g>
+    <rect x="94" y="208" width="324" height="248" rx="28" class="file"/>
+    <text x="124" y="246" class="label">Artifact 01</text>
+    <text x="124" y="284" class="h">escalation-decision.json</text>
+    <text x="124" y="322" class="sub">level: P1</text>
+    <text x="124" y="352" class="sub">negativeRate: 0.50</text>
+    <text x="124" y="382" class="sub">criticalTicketCount: 2</text>
+    <text x="124" y="412" class="sub">topThemes: support / checkout / stability</text>
+    <text x="124" y="442" class="sub">immediateActions: 4 条</text>
+
+    <rect x="470" y="208" width="324" height="248" rx="28" class="file"/>
+    <text x="500" y="246" class="label">Artifact 02</text>
+    <text x="500" y="284" class="h">incident-brief.md</text>
+    <text x="500" y="322" class="sub">事件概况 / 影响范围 / 风险主题</text>
+    <text x="500" y="352" class="sub">证据链：post id + ticket id</text>
+    <text x="500" y="382" class="sub">升级判断：为什么是 P1</text>
+    <text x="500" y="412" class="sub">建议动作：war room / 冻结投放 / FAQ</text>
+    <text x="500" y="442" class="sub">数据治理：不传播注入文本</text>
+  </g>
+
+  <g>
+    <rect x="842" y="250" width="262" height="164" rx="26" class="guard"/>
+    <text x="873" y="290" class="label">Guard Layer</text>
+    <text x="873" y="326" class="h">incident-guard</text>
+    <text x="873" y="362" class="sub">检查章节完整性、证据 id、P1 决策、</text>
+    <text x="873" y="390" class="sub">行动项数量、注入文本传播风险。</text>
+  </g>
+
+  <path d="M418 330 L470 330" stroke="#58d7ff" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M794 330 L842 330" stroke="#58d7ff" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+
+  <g>
+    <rect x="120" y="536" width="250" height="126" rx="24" class="target"/>
+    <text x="150" y="574" class="label">Consumer 01</text>
+    <text x="150" y="612" class="h">人类 Review</text>
+    <text x="150" y="642" class="sub">管理层 / oncall / war room</text>
+
+    <rect x="472" y="536" width="250" height="126" rx="24" class="target"/>
+    <text x="502" y="574" class="label">Consumer 02</text>
+    <text x="502" y="612" class="h">CI / Workflow</text>
+    <text x="502" y="642" class="sub">自动归档、告警、升级流程</text>
+
+    <rect x="824" y="536" width="250" height="126" rx="24" class="target"/>
+    <text x="854" y="574" class="label">Consumer 03</text>
+    <text x="854" y="612" class="h">下一轮 Agent</text>
+    <text x="854" y="642" class="sub">继续调查、写公告、跟进修复</text>
+  </g>
+
+  <path d="M973 414 L973 472" stroke="#49e0aa" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M973 472 C973 512 245 492 245 536" stroke="#49e0aa" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M973 472 C973 512 597 492 597 536" stroke="#49e0aa" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+  <path d="M973 472 C973 512 949 492 949 536" stroke="#49e0aa" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+  <text x="66" y="720" class="sub">简图说明：结构化 JSON 适合系统和流程消费，Markdown 简报适合人读；guard 则保证两者都可 review、可追踪。</text>
+</svg>
