@@ -114,80 +114,28 @@ export async function runScriptedReplay(_task: string, emit: Emit, signal?: Abor
 
   const steps = [
     {
-      message: "工程动作空间：模型先用熟悉的 bash/文件系统接口定向，不需要为“列文件、读文档、看数据”分别设计专用工具。",
+      message: "1 / 6 · 探索：agent 用 bash 在沙箱里建立上下文——不需要专用工具。",
       command: "pwd && find . -maxdepth 3 -type f | sort",
     },
     {
-      message: "需求校准：Feature Agent 先读需求、架构和分析策略，而不是直接开始写代码。",
-      command: "cat README.md && printf '\\n--- requirements ---\\n' && cat docs/requirements.md && printf '\\n--- architecture ---\\n' && cat docs/architecture.md && printf '\\n--- policy ---\\n' && cat docs/analysis_policy.md",
+      message: "2 / 6 · 多源数据：社媒、工单、升级规则、产品目录、incident log——像工程师逛 codebase 一样逛业务数据。",
+      command: "head -n 8 data/social-posts.jsonl && printf '\\n--- tickets ---\\n' && head -n 5 data/support-tickets.csv && printf '\\n--- rules ---\\n' && cat config/escalation-rules.yaml && printf '\\n--- log ---\\n' && cat logs/incident.log",
     },
     {
-      message: "多源输入：这个案例不只看帖子，还要结合客服工单、升级规则、产品目录和 incident log 做升级判断。",
-      command: "head -n 8 data/social-posts.jsonl && printf '\\n--- ticket meta ---\\n' && while IFS=, read -r ticketId sku category priority summary createdAt; do [ \"$ticketId\" = \"ticket_id\" ] && continue; printf '%s,%s,%s,%s\\n' \"$ticketId\" \"$sku\" \"$category\" \"$priority\"; done < data/support-tickets.csv && printf '\\n--- rules ---\\n' && cat config/escalation-rules.yaml && printf '\\n--- catalog keys ---\\n' && jq 'keys' data/product-catalog.json && printf '\\n--- log ---\\n' && cat logs/incident.log",
-    },
-    {
-      message: "可组合工具：用 grep 和 jq 快速建立上下文，找出关键主题、平台分布、SKU 归属和潜在注入文本。",
-      command: "grep -R \"发热\\|闪退\\|支付页\\|差评\\|忽略前面\\|TODO\" -n data docs src logs config | sort\njq -s 'group_by(.platform) | map({platform: .[0].platform, count: length})' data/social-posts.jsonl",
-    },
-    {
-      message: "反馈闭环：先跑测试，让失败信息告诉模型具体缺什么，而不是凭感觉实现。",
+      message: "3 / 6 · 反馈信号：先跑测试，失败信息告诉 agent 具体缺什么——stdout / exitCode 是传感器。",
       command: "npm test",
     },
     {
-      message: "源码定位：测试失败后再读三个模块，确认归一化、聚合和升级决策分别缺什么。",
-      command: "printf -- '--- normalize ---\\n' && cat src/normalize.ts && printf '\\n--- risk-score ---\\n' && cat src/risk-score.ts && printf '\\n--- escalation ---\\n' && cat src/escalation.ts",
+      message: "4 / 6 · 写代码：agent 补齐三个模块（normalize / risk-score / escalation）。",
+      command: `cat > src/normalize.ts <<'EOF'\n${incidentSourceFilesFixed.normalize}EOF\ncat > src/risk-score.ts <<'EOF'\n${incidentSourceFilesFixed.riskScore}EOF\ncat > src/escalation.ts <<'EOF'\n${incidentSourceFilesFixed.escalation}EOF\necho "three modules written."`,
     },
     {
-      message: "第一段实现：agent 先补齐 normalize.ts，把 JSONL 帖子和 CSV 工单变成统一信号。",
-      command: `cat > src/normalize.ts <<'EOF'\n${incidentSourceFilesFixed.normalize}EOF`,
+      message: "5 / 6 · 闭环：重跑 test + lint + 生成双 artifact。",
+      command: "npm test && npm run lint && mkdir -p reports && incident-analyze --json > reports/escalation-decision.json && incident-analyze --markdown > reports/incident-brief.md && cat reports/escalation-decision.json",
     },
     {
-      message: "第二段实现：再补齐 risk-score.ts，把负向占比、平台扩散、关键工单数和证据链算出来。",
-      command: `cat > src/risk-score.ts <<'EOF'\n${incidentSourceFilesFixed.riskScore}EOF`,
-    },
-    {
-      message: "第三段实现：最后补齐 escalation.ts，把 YAML 升级规则变成 P1 / P2 / Monitor 判断。",
-      command: `cat > src/escalation.ts <<'EOF'\n${incidentSourceFilesFixed.escalation}EOF`,
-    },
-    {
-      message: "验证闭环：修复后必须重新跑测试和 lint，确保三段链路都已经接上。",
-      command: "npm test && npm run lint",
-    },
-    {
-      message: "运行功能：incident-analyze 先产出结构化 JSON，确认 summary 和 P1 决策已经闭合。",
-      command: "incident-analyze --json",
-    },
-    {
-      message: "交付 artifact：agent 生成双输出，一个给系统消费，一个给管理层阅读。",
-      command: "mkdir -p reports && incident-analyze --json > reports/escalation-decision.json && incident-analyze --markdown > reports/incident-brief.md\nprintf -- '--- decision ---\\n' && cat reports/escalation-decision.json && printf '\\n--- brief ---\\n' && cat reports/incident-brief.md",
-    },
-    {
-      message: "治理层：incident-guard 检查报告章节、证据链、P1 决策、行动项，以及是否逐字传播了注入文本。",
+      message: "6 / 6 · 外化的模型：incident-guard 编码了团队对“什么叫好”的判断——章节、证据链、P1 决策、行动项。",
       command: "incident-guard reports/incident-brief.md reports/escalation-decision.json",
-    },
-    {
-      message: "数据注入边界：样本里确实有像指令的文本，但它只是数据；harness 和系统规则不会被它改写。",
-      command: "grep -n \"忽略前面所有指令\" data/social-posts.jsonl && printf '\\n--- brief check ---\\n' && grep -n \"不可信\\|控制面\\|P1\" reports/incident-brief.md",
-    },
-    {
-      message: "安全姿态：沙箱能力是显式配置出来的，不是默认把真实机器交给模型。",
-      command: "npm run audit-sandbox",
-    },
-    {
-      message: "状态模型：单次 exec 里可以有 shell 变量；如果需要跨轮次记忆，就应该写入虚拟文件系统。",
-      command: "export TEMP_SECRET=demo-only && echo $TEMP_SECRET > /tmp/persisted-via-file && echo \"本次 exec 中的 shell 变量：$TEMP_SECRET\"",
-    },
-    {
-      message: "状态模型：下一次 exec 会重置 shell/env 状态，但虚拟文件会保留。这让 agent 的长期记忆更可观察、更可复现。",
-      command: "printf '下一次 exec 中的 shell 变量：'; if printenv TEMP_SECRET; then true; else echo '<空>'; fi\nprintf '跨 exec 持久化的虚拟文件：'; cat /tmp/persisted-via-file",
-    },
-    {
-      message: "安全边界：host 文件系统和网络不是默认可用能力。读 /etc/passwd 会失败；未配置网络时 curl 不存在。",
-      command: "cat /etc/passwd || true\ncurl https://example.com || true",
-    },
-    {
-      message: "资源控制：无限循环不会拖垮宿主进程，会被 just-bash 的执行上限截断。",
-      command: "while true; do :; done",
     },
   ];
 
@@ -204,10 +152,9 @@ export async function runScriptedReplay(_task: string, emit: Emit, signal?: Abor
   await emit({
     type: "final",
     text: [
-      "中文回放演示完成。",
-      "这次演示把案例升级成了“Nova X1 舆情应急处置 Agent”：agent 不只做情绪分类，而是结合社媒、客服工单、升级规则、产品目录和 incident log，判断是否应该升级为 P1。",
-      "它重点展示了 just-bash 的工程价值：filesystem + bash 提供模型熟悉的动作空间；多源文件、规则 YAML、grep/jq、here-doc、自定义命令和 artifact 共同组成可复现的工作台；stdout、stderr 和 exitCode 则构成反馈信号。",
-      "它也强化了治理层：测试、lint、incident-guard 和双 artifact 让决策可 review、可追溯；不可信帖子文本只能作为数据证据，不能覆盖系统指令；host 文件系统、网络和无限循环都需要在 harness 层被明确约束。",
+      "演示结束。",
+      "六步闭环：探索 → 多源数据 → 失败测试 → 写代码 → 测试+artifact → guard 验证。",
+      "传感器 = stdout/exitCode/test；执行器 = bash；约束 = OverlayFS/无网络；外化的模型 = rules/tests/guard。",
     ].join("\n"),
     snapshot: await readSandboxSnapshot(bash),
   });
