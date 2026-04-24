@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>just-bash：舆情应急处置 Agent</title>
+  <style>
+    :root {
+      --bg: #050b13;
+      --ink: #f6f8fb;
+      --muted: #a9bdcc;
+      --dim: #718899;
+      --panel: rgba(13, 30, 47, 0.84);
+      --panel-soft: rgba(11, 24, 37, 0.74);
+      --panel-strong: rgba(7, 18, 29, 0.9);
+      --line: rgba(97, 143, 171, 0.28);
+      --cyan: #37d5ff;
+      --green: #4fe3a4;
+      --amber: #f7b955;
+      --red: #ff6b6b;
+      --blue: #6bb6ff;
+      --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+      --mono: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --content-max: 1320px;
+      --content-wide: 1380px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; min-height: 100%; color: var(--ink); font-family: var(--font); background: var(--bg); overflow: hidden; }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 10% 10%, rgba(55, 213, 255, 0.22), transparent 27%),
+        radial-gradient(circle at 86% 6%, rgba(247, 185, 85, 0.16), transparent 27%),
+        radial-gradient(circle at 78% 88%, rgba(79, 227, 164, 0.13), transparent 28%),
+        linear-gradient(135deg, #050b13 0%, #071523 48%, #05121b 100%);
+      z-index: -2;
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: radial-gradient(circle at center, black, transparent 78%);
+      z-index: -1;
+    }
+
+    .deck { position: relative; width: 100vw; height: 100vh; }
+    .slide { position: absolute; inset: 0; display: none; padding: clamp(24px, 2.6vw, 48px) clamp(28px, 3.5vw, 56px); overflow: hidden; }
+    .slide.active { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; justify-items: center; gap: 16px; animation: reveal 260ms ease-out; }
+    @keyframes reveal { from { opacity: 0; transform: translateY(10px) scale(0.992); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+    .kicker { color: var(--cyan); font-family: var(--mono); font-size: 13px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
+    h1, h2, h3, p { margin: 0; }
+    header { display: grid; align-content: start; gap: 8px; width: min(100%, var(--content-max)); margin-inline: auto; }
+    h1 { max-width: 1060px; font-size: clamp(54px, 6.4vw, 104px); line-height: 0.9; letter-spacing: -0.07em; }
+    h2 { max-width: 1080px; margin-top: 8px; font-size: clamp(38px, 4.1vw, 68px); line-height: 1.02; letter-spacing: -0.06em; }
+    h3 { font-size: clamp(22px, 2vw, 34px); line-height: 1.1; letter-spacing: -0.03em; }
+    .lead { max-width: 980px; margin-top: 8px; color: var(--muted); font-size: clamp(18px, 1.48vw, 26px); line-height: 1.52; }
+    .content { min-height: 0; display: grid; align-content: start; gap: 18px; width: min(100%, var(--content-max)); margin-inline: auto; }
+    .content + .content { margin-top: -2px; }
+    .split { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr); gap: 24px; align-items: stretch; }
+    .grid { display: grid; gap: 16px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .stack { display: grid; gap: 14px; }
+    .hero-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(18, 39, 59, 0.82), rgba(7, 18, 28, 0.9));
+      box-shadow: 0 16px 42px rgba(0, 0, 0, 0.2);
+    }
+    .metric b { display: block; color: var(--cyan); font-family: var(--mono); font-size: 13px; margin-bottom: 8px; }
+    .metric span { color: var(--ink); font-size: 15px; line-height: 1.4; }
+    .note-strip {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 16px 18px;
+      background: linear-gradient(180deg, rgba(13, 28, 43, 0.84), rgba(7, 18, 29, 0.9));
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.5;
+    }
+    .note-strip strong { color: var(--amber); }
+    .history-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .history-chip {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 14px 16px;
+      background: rgba(9, 24, 38, 0.78);
+    }
+    .history-chip b { display: block; color: var(--cyan); font-family: var(--mono); font-size: 12px; margin-bottom: 8px; }
+    .history-chip span { color: var(--muted); font-size: 15px; line-height: 1.42; }
+    .risk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .risk-card {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 20px 20px 18px;
+      background: linear-gradient(180deg, rgba(17, 39, 60, 0.86), rgba(8, 20, 32, 0.92));
+      box-shadow: 0 18px 54px rgba(0, 0, 0, 0.24);
+    }
+    .risk-card h3 { color: var(--ink); }
+    .risk-card .meta { display: grid; gap: 10px; margin-top: 14px; }
+    .risk-card .meta div {
+      border: 1px solid rgba(97, 143, 171, 0.2);
+      border-radius: 16px;
+      padding: 12px 14px;
+      background: rgba(5, 14, 24, 0.48);
+    }
+    .risk-card .meta b {
+      display: block;
+      color: var(--accent, var(--cyan));
+      font-family: var(--mono);
+      font-size: 12px;
+      margin-bottom: 6px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .risk-card .meta span { color: var(--muted); font-size: 15px; line-height: 1.42; }
+    .watch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-content: start; }
+    .watch-item {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 16px;
+      background: linear-gradient(180deg, rgba(18, 39, 59, 0.84), rgba(7, 18, 28, 0.9));
+    }
+    .watch-item b { display: block; color: var(--cyan); font-family: var(--mono); font-size: 13px; margin-bottom: 8px; }
+    .watch-item span { color: var(--muted); font-size: 15px; line-height: 1.42; }
+    .refs-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .ref-card {
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 20px;
+      background: linear-gradient(180deg, rgba(17, 39, 60, 0.86), rgba(8, 20, 32, 0.92));
+      box-shadow: 0 18px 54px rgba(0, 0, 0, 0.22);
+    }
+    .ref-card b {
+      display: block;
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 13px;
+      margin-bottom: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .ref-card p {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    .ref-card a { color: var(--ink); text-decoration: none; }
+    .ref-card a:hover { color: var(--cyan); }
+    .sublead {
+      max-width: 920px;
+      color: var(--muted);
+      font-size: clamp(16px, 1.08vw, 20px);
+      line-height: 1.5;
+    }
+
+    .card {
+      position: relative;
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 20px 20px 18px;
+      background: linear-gradient(180deg, rgba(24, 50, 74, 0.88), rgba(10, 24, 37, 0.92));
+      box-shadow: 0 22px 64px rgba(0, 0, 0, 0.24);
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+    }
+    .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--accent, var(--cyan)); }
+    .label { color: var(--accent, var(--cyan)); font-family: var(--mono); font-size: 12px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+    .card p { margin-top: 10px; color: var(--ink); font-size: clamp(16px, 1.14vw, 21px); line-height: 1.38; }
+    .card .muted { color: var(--muted); font-size: clamp(13px, 0.94vw, 17px); }
+    .statement { max-width: 1020px; color: var(--ink); font-size: clamp(26px, 2.8vw, 48px); line-height: 1.12; letter-spacing: -0.045em; }
+    .statement strong { color: var(--green); }
+    .tagline { display: inline-flex; align-items: center; gap: 10px; margin-top: 12px; border: 1px solid rgba(55, 213, 255, 0.42); border-radius: 999px; padding: 10px 14px; color: var(--cyan); background: rgba(55, 213, 255, 0.08); font-family: var(--mono); font-size: 13px; font-weight: 900; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .pill { border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; color: var(--muted); background: rgba(11, 28, 43, 0.76); font-family: var(--mono); font-size: 13px; }
+
+    .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+    .step { position: relative; border: 1px solid var(--line); border-radius: 22px; padding: 20px 18px; background: linear-gradient(180deg, rgba(21, 45, 68, 0.86), rgba(8, 22, 35, 0.9)); min-height: 196px; }
+    .step:not(:last-child)::after { content: ">"; position: absolute; right: -13px; top: 50%; transform: translateY(-50%); color: var(--amber); font-family: var(--mono); font-weight: 900; z-index: 2; }
+    .step b { display: block; color: var(--green); font-family: var(--mono); margin-bottom: 12px; font-size: 17px; }
+    .step span { color: var(--muted); line-height: 1.46; font-size: 15px; }
+
+    .terminal { border: 1px solid var(--line); border-radius: 22px; background: var(--panel-strong); overflow: hidden; box-shadow: 0 22px 70px rgba(0,0,0,0.28); display: flex; flex-direction: column; min-height: 100%; }
+    .bar { height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 16px; color: var(--dim); background: rgba(24, 54, 82, 0.92); font-family: var(--mono); font-size: 13px; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--red); }
+    .dot:nth-child(2) { background: var(--amber); }
+    .dot:nth-child(3) { background: var(--green); margin-right: 10px; }
+    pre { margin: 0; padding: 18px 20px 20px; color: var(--green); font-family: var(--mono); font-size: clamp(13px, 1vw, 17px); line-height: 1.58; white-space: pre-wrap; flex: 1; }
+    .bad { color: var(--red); } .ok { color: var(--green); } .warn { color: var(--amber); } .cyan { color: var(--cyan); }
+
+    .table { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 26px; background: rgba(8, 19, 30, 0.48); }
+    .row { display: grid; grid-template-columns: 0.72fr 1fr 1fr; gap: 12px; }
+    .cell { border: 1px solid var(--line); border-radius: 18px; padding: 16px; color: var(--muted); background: rgba(9,24,38,0.8); line-height: 1.42; font-size: clamp(14px, 1vw, 17px); }
+    .cell.head { color: var(--amber); font-family: var(--mono); font-weight: 900; }
+    .quote { border-left: 6px solid var(--green); padding-left: 24px; max-width: 930px; color: var(--ink); font-size: clamp(28px, 3vw, 52px); line-height: 1.14; letter-spacing: -0.045em; }
+    .caption { margin-top: 14px; color: var(--muted); font-size: 17px; line-height: 1.56; }
+    .speaker { display: none; }
+    .references { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; max-width: 1280px; margin-inline: auto; }
+    .references a { color: var(--cyan); text-decoration: none; }
+    .references li { color: var(--muted); margin: 0; line-height: 1.46; font-size: 17px; }
+    .visual-frame { border: 1px solid var(--line); border-radius: 24px; padding: 12px; background: linear-gradient(180deg, rgba(11, 24, 38, 0.84), rgba(5, 15, 24, 0.92)); box-shadow: 0 22px 72px rgba(0,0,0,0.28); overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 100%; }
+    .visual-frame img { display: block; width: 100%; height: 100%; max-height: 62vh; object-fit: contain; border-radius: 16px; }
+    .visual-note { color: var(--muted); font-size: 17px; line-height: 1.48; }
+    .image-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; width: min(100%, var(--content-wide)); margin-inline: auto; }
+    .image-panel { display: grid; gap: 12px; align-content: start; }
+    .image-panel .visual-frame { padding: 10px; }
+    .image-panel .visual-frame img {
+      width: 100%;
+      height: clamp(260px, 30vw, 390px);
+      object-fit: contain;
+      background: rgba(6, 17, 31, 0.94);
+    }
+    .image-caption {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 14px 16px;
+      background: rgba(10, 24, 38, 0.78);
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.52;
+    }
+    .image-caption strong { color: var(--cyan); }
+
+    .footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: min(100%, var(--content-max)); margin-inline: auto; border-top: 1px solid var(--line); padding-top: 12px; color: var(--dim); font-family: var(--mono); font-size: 11px; }
+    .source { max-width: 68%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .source a { color: var(--cyan); text-decoration: none; }
+    .controls { position: fixed; right: 16px; bottom: 14px; z-index: 50; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid rgba(97, 143, 171, 0.24); border-radius: 999px; background: rgba(4, 12, 20, 0.46); backdrop-filter: blur(12px); color: var(--dim); font-family: var(--mono); font-size: 12px; }
+    button, .demo-link { border: 1px solid rgba(55, 213, 255, 0.5); border-radius: 999px; padding: 8px 12px; color: var(--cyan); background: rgba(6,17,31,0.78); font-family: var(--mono); font-weight: 900; text-decoration: none; cursor: pointer; }
+    button:hover, .demo-link:hover { background: rgba(55, 213, 255, 0.12); }
+    .progress { position: fixed; left: 0; bottom: 0; height: 4px; width: 100vw; background: rgba(255,255,255,0.08); z-index: 60; }
+    .progress span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--green)); transition: width 160ms ease-out; }
+    .notes { position: fixed; left: 24px; right: 24px; bottom: 64px; z-index: 70; display: none; border: 1px solid rgba(247,185,85,0.5); border-radius: 20px; padding: 16px 18px; color: #ffe5b5; background: rgba(29,22,7,0.92); font-size: 16px; line-height: 1.5; box-shadow: 0 20px 80px rgba(0,0,0,0.42); }
+    .notes.visible { display: block; }
+    .overview { position: fixed; inset: 0; z-index: 80; display: none; padding: 38px; background: rgba(3,8,14,0.94); overflow: auto; }
+    .overview.visible { display: block; }
+    .overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .thumb { border: 1px solid var(--line); border-radius: 18px; min-height: 138px; padding: 16px; background: rgba(18,42,64,0.72); cursor: pointer; }
+    .thumb b { display: block; color: var(--cyan); font-family: var(--mono); margin-bottom: 10px; }
+    .thumb span { color: var(--ink); line-height: 1.35; }
+
+    section[data-title="代码层控制回路"] .content,
+    section[data-title="just-bash：把控制回路变成工程接口"] .content {
+      align-content: start;
+      width: min(100%, var(--content-wide));
+    }
+    section[data-title="代码层控制回路"] .image-grid,
+    section[data-title="just-bash：把控制回路变成工程接口"] .image-grid { margin-top: 2px; }
+    section[data-title="代码层控制回路"] header,
+    section[data-title="just-bash：把控制回路变成工程接口"] header {
+      width: min(100%, var(--content-wide));
+    }
+    section[data-title="代码层控制回路"] h2,
+    section[data-title="just-bash：把控制回路变成工程接口"] h2 {
+      max-width: 900px;
+      font-size: clamp(26px, 2.7vw, 40px);
+      line-height: 1.06;
+      letter-spacing: -0.05em;
+    }
+    section[data-title="代码层控制回路"] .image-panel .visual-frame img,
+    section[data-title="just-bash：把控制回路变成工程接口"] .image-panel .visual-frame img {
+      height: clamp(280px, 31vw, 410px);
+    }
+    section[data-title="代码层控制回路"] .image-caption,
+    section[data-title="just-bash：把控制回路变成工程接口"] .image-caption {
+      padding: 12px 14px;
+      font-size: 15px;
+      line-height: 1.48;
+    }
+    section[data-title="代码层控制回路"] .note-strip,
+    section[data-title="just-bash：把控制回路变成工程接口"] .note-strip {
+      padding: 13px 16px;
+      font-size: 16px;
+    }
+    section[data-title="为什么这个案例"] h2 {
+      max-width: 880px;
+      font-size: clamp(28px, 2.8vw, 42px);
+      line-height: 1.06;
+      letter-spacing: -0.045em;
+    }
+    section[data-title="为什么这个案例"] .content { width: min(100%, var(--content-wide)); }
+    section[data-title="为什么这个案例"] .split {
+      grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
+      align-items: start;
+    }
+    section[data-title="为什么这个案例"] .statement {
+      max-width: 760px;
+      font-size: clamp(28px, 3vw, 46px);
+    }
+    section[data-title="为什么这个案例"] .card { min-height: 148px; }
+
+    section[data-title="just-bash 能力栈"] .content,
+    section[data-title="数据层"] .content,
+    section[data-title="报告 artifact"] .content,
+    section[data-title="现场 demo"] .content,
+    section[data-title="结论"] .content { width: min(100%, var(--content-wide)); }
+
+    section[data-title="just-bash 能力栈"] .split { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); }
+    section[data-title="数据层"] .split { grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr); }
+    section[data-title="报告 artifact"] .split { grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr); }
+    section[data-title="现场 demo"] .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+
+    section[data-title="just-bash 能力栈"] .visual-frame,
+    section[data-title="数据层"] .visual-frame,
+    section[data-title="报告 artifact"] .visual-frame { min-height: clamp(380px, 48vh, 580px); }
+
+    section[data-title="just-bash 能力栈"] .visual-frame img,
+    section[data-title="数据层"] .visual-frame img,
+    section[data-title="报告 artifact"] .visual-frame img { max-height: 66vh; }
+
+    section[data-title="OverlayFS"] .split,
+    section[data-title="自定义命令"] .split,
+    section[data-title="AST 与可观测性"] .split,
+    section[data-title="需求"] .split,
+    section[data-title="测试驱动"] .split { grid-template-columns: minmax(0, 1fr) minmax(0, 0.94fr); }
+
+    section[data-title="观察层"] .grid,
+    section[data-title="数据层"] .grid { align-content: center; }
+
+    section[data-title="结论"] .grid.four { gap: 14px; }
+
+    section[data-title="引用"] .content { align-content: start; }
+    section[data-title="引用"] header { max-width: 980px; }
+
+    @media (max-width: 980px) {
+      body { overflow: auto; }
+      .deck { height: auto; min-height: 100vh; }
+      .slide { position: static; min-height: 100vh; display: none; overflow: auto; }
+      .slide.active { display: grid; }
+      .split, .grid.two, .grid.three, .grid.four, .flow, .row { grid-template-columns: 1fr; }
+      .hero-metrics, .history-strip, .risk-grid, .watch-grid, .refs-grid { grid-template-columns: 1fr; }
+      .references { grid-template-columns: 1fr; }
+      .step::after { display: none; }
+      .source { max-width: 100%; white-space: normal; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+    <section class="slide active" data-title="代码层控制回路">
+      <header><div class="kicker">Thesis</div><h2>代码层第一次开始形成高层闭环</h2></header>
+      <div class="content stack">
+        <p class="sublead">过去能闭环的是语法、测试和 lint。现在，代码层开始在“理解问题、修改实现、接收反馈”这一层形成更高阶的回路。</p>
+        <div class="image-grid">
+          <div class="image-panel">
+            <div class="visual-frame">
+              <img src="/assets/watt-governor-control-loop.png" alt="瓦特离心调速器控制回路插图" />
+            </div>
+            <div class="image-caption"><strong>Watt Governor</strong>：传感器是转速，执行器是蒸汽阀，工人从“手动拧阀门”转向“设计调速器与阈值”。</div>
+          </div>
+          <div class="image-panel">
+            <div class="visual-frame">
+              <img src="/assets/kubernetes-control-loop.png" alt="Kubernetes 控制回路插图" />
+            </div>
+            <div class="image-caption"><strong>Kubernetes</strong>：工程师声明 desired state，controller 持续观察 actual state，并自动 reconcile 到目标状态。</div>
+          </div>
+        </div>
+        <div class="note-strip"><strong>共同模式：</strong>有了足够好的传感器和执行器，人就会从“亲自做动作”转向“设计目标与反馈”。</div>
+      </div>
+      <footer class="footer"><span>01 / Control Loop Lineage</span><span class="source">背景铺垫：从机械控制，到软件控制</span></footer>
+      <aside class="speaker">开场先抛结论：今天要讲的不是一个 shell 工具，而是代码层第一次开始出现高层闭环。Watt 和 Kubernetes 只是帮观众快速找到这条谱系。</aside>
+    </section>
+
+    <section class="slide" data-title="just-bash：把控制回路变成工程接口">
+      <header><div class="kicker">Bridge</div><h2>just-bash：把高层闭环落成工程接口</h2></header>
+      <div class="content stack">
+        <p class="sublead">Harness Engineering 讲的是角色变化：工程师从手写实现，转向设计环境、反馈和约束。just-bash 回答的是另一个问题：这层接口具体长什么样。</p>
+        <div class="image-grid">
+          <div class="image-panel">
+            <div class="visual-frame">
+              <img src="/assets/harness-engineering-control-loop.png" alt="Harness Engineering 控制回路插图" />
+            </div>
+            <div class="image-caption"><strong>Harness Engineering</strong>：测试、约束、环境、反馈一起组成高层控制回路，人类从手写实现转向设计标准与闭环。</div>
+          </div>
+          <div class="image-panel">
+            <div class="visual-frame">
+              <img src="/assets/just-bash-interface-layer.png" alt="just-bash 接口层插图" />
+            </div>
+            <div class="image-caption"><strong>just-bash</strong>：把文件系统、bash、自定义命令、AST 插桩拼成一个 agent 可操作、又可治理的工程接口层。</div>
+          </div>
+        </div>
+      </div>
+      <footer class="footer"><span>02 / Harness to Interface</span><span class="source">把“控制回路”翻译成 agent 工程运行时</span></footer>
+      <aside class="speaker">这一页完成桥接：把 OpenAI 的叙事接到 Vercel 的实现。重点不是比较两家公司，而是让观众明白理论和运行时是怎么接上的。</aside>
+    </section>
+
+    <section class="slide" data-title="为什么这个案例">
+      <header><div class="kicker">Transition</div><h2>为什么要用一个长链路案例</h2></header>
+      <div class="content split">
+        <div class="stack">
+          <p class="statement">如果只是做单一 SQL 查询，或者只跑一个分类器，我们能看到的是“模型会不会调用工具”。但要把 just-bash 讲清楚，需要一条同时包含 <strong>读文件、写代码、运行命令、生成 artifact、处理不可信文本</strong> 的完整工程链路。</p>
+          <div class="note-strip"><strong>所以这里选舆情应急处置：</strong>它不是为了展示算法本身，而是因为它刚好能把文件系统、自定义命令、AST 插桩、报告交付和安全边界一次串起来。</div>
+          <div class="pill-row">
+            <span class="pill">多源文件输入</span>
+            <span class="pill">代码实现</span>
+            <span class="pill">测试反馈</span>
+            <span class="pill">artifact 交付</span>
+            <span class="pill">注入防护</span>
+          </div>
+        </div>
+        <div class="grid two">
+          <div class="card" style="--accent: var(--cyan)"><div class="label">Filesystem</div><p>社媒 JSONL、工单 CSV、规则 YAML、日志和源码都在同一个工作区里。</p><p class="muted">自然对应 just-bash 的文件系统层。</p></div>
+          <div class="card" style="--accent: var(--amber)"><div class="label">Commands</div><p>分析、校验、生成报告可以包装成 `incident-analyze`、`incident-guard` 这类命令。</p><p class="muted">自然对应自定义命令。</p></div>
+          <div class="card" style="--accent: var(--green)"><div class="label">Feedback</div><p>测试失败、guard 失败、stderr 提示都能直接变成下一步修复动作。</p><p class="muted">自然对应 agent 的控制信号。</p></div>
+          <div class="card" style="--accent: var(--red)"><div class="label">Boundary</div><p>帖子文本会夹带“忽略前文”之类注入内容，但它只能作为数据，不能越权。</p><p class="muted">自然对应 just-bash 的 threat model。</p></div>
+        </div>
+      </div>
+      <footer class="footer"><span>03 / Transition to Case</span><span class="source">先把接口层落到一个长链路工程案例，再进入具体能力拆解</span></footer>
+      <aside class="speaker">这页的任务不是证明“这个案例更酷”，而是完成过渡：为什么前面讲完控制回路、接口层和能力栈之后，我们需要一个长链路 feature case 把 just-bash 讲具体。</aside>
+    </section>
+
+    <section class="slide" data-title="just-bash 能力栈">
+      <header><div class="kicker">Runtime Primitives</div><h2>先看运行时：just-bash 到底提供什么</h2></header>
+      <div class="content split">
+        <div class="grid two">
+          <div class="card" style="--accent: var(--cyan)"><div class="label">Bash + Unix</div><p>管道、重定向、变量、条件、循环、grep/jq/sed/find 等通用动作空间。</p><p class="muted">模型天然熟悉。</p></div>
+          <div class="card" style="--accent: var(--green)"><div class="label">Filesystem Layer</div><p>InMemoryFs、OverlayFs、ReadWriteFs、MountableFs。</p><p class="muted">决定 agent 能读什么、写到哪里。</p></div>
+          <div class="card" style="--accent: var(--amber)"><div class="label">Custom Commands</div><p>`defineCommand` 把团队业务能力包装成 shell 命令。</p><p class="muted">例如 `incident-analyze`、`incident-guard`。</p></div>
+          <div class="card" style="--accent: var(--blue)"><div class="label">AST Pipeline</div><p>parse → transform → serialize，可插入命令收集、tee 输出、审计元数据。</p><p class="muted">让 shell 本身可观测。</p></div>
+        </div>
+        <div class="visual-frame">
+          <img src="/assets/runtime-stack.png" alt="just-bash 运行时能力栈插图" />
+        </div>
+      </div>
+      <footer class="footer"><span>03 / just-bash Stack</span><span class="source">今天后面的所有案例和安全边界，都会回到这四个运行时原语</span></footer>
+      <aside class="speaker">这一页先把观众的心智模型立住：后面无论我们讲案例、讲安全还是讲 demo，回头看都只是这四个原语在不同层级上的组合。</aside>
+    </section>
+
+    <section class="slide" data-title="OverlayFS">
+      <header><div class="kicker">Filesystem Strategy</div><h2>为什么它能安全改代码：OverlayFS</h2></header>
+      <div class="content split">
+        <div class="terminal"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>copy-on-write workspace</div><pre>const overlay = new OverlayFs({ root: "/path/to/project" });
+const bash = new Bash({ fs: overlay, cwd: overlay.getMountPoint() });
+
+await bash.exec("cat package.json");       // 从真实磁盘读
+await bash.exec("echo changed > file.ts"); // 写入 overlay，留在内存
+
+// 人类确认后，再决定是否把 diff 落盘</pre></div>
+        <div class="grid">
+          <div class="card" style="--accent: var(--cyan)"><div class="label">适合代码功能场景</div><p>agent 能像在真实 repo 里工作：读源码、跑测试、生成 patch。</p></div>
+          <div class="card" style="--accent: var(--green)"><div class="label">默认不污染宿主机</div><p>读来自真实项目，写停在 overlay。可以先 review，再决定是否 apply。</p></div>
+          <div class="card" style="--accent: var(--amber)"><div class="label">可组合挂载</div><p>MountableFs 可以把只读知识库、临时工作区、真实数据目录组合成统一路径空间。</p></div>
+        </div>
+      </div>
+      <footer class="footer"><span>05 / OverlayFS</span><span class="source">当前 demo 为了稳定用 InMemoryFs；生产型演示可切到 OverlayFs</span></footer>
+      <aside class="speaker">强调我们的 demo 用 InMemoryFS 是为了可重复，但真实“写代码做功能”非常适合 OverlayFS：读真实仓库，写入内存，人工确认后再落盘。</aside>
+    </section>
+
+    <section class="slide" data-title="自定义命令">
+      <header><div class="kicker">Custom Commands</div><h2>为什么它不只会跑通用命令：自定义命令</h2></header>
+      <div class="content split">
+        <div class="terminal"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>defineCommand</div><pre>const incidentAnalyze = defineCommand("incident-analyze", async (args, ctx) => {
+  const data = await ctx.fs.readFile(args[0]);
+  return { stdout: analyze(data), stderr: "", exitCode: 0 };
+});
+
+const incidentGuard = defineCommand("incident-guard", async (args, ctx) => {
+  const report = await ctx.fs.readFile(args[0]);
+  return checkPolicy(report);
+});</pre></div>
+        <div>
+          <p class="statement" style="font-size: clamp(28px, 3vw, 48px)">不要只给模型“万能 shell”。更好的方式是把业务动作做成 <strong>可管控、可测试、可组合</strong> 的命令。</p>
+          <div class="pill-row"><span class="pill">ctx.fs</span><span class="pill">ctx.stdin</span><span class="pill">pipes</span><span class="pill">redirections</span><span class="pill">exitCode</span></div>
+        </div>
+      </div>
+      <footer class="footer"><span>06 / Custom Commands</span><span class="source">demo 中的 `incident-analyze` 和 `incident-guard` 就是自定义命令</span></footer>
+      <aside class="speaker">这里把“自定义指令”说清楚：不是 prompt 指令，而是 host 注册的 TypeScript command，能参与管道、重定向和 exit code 反馈。</aside>
+    </section>
+
+    <section class="slide" data-title="AST 与可观测性">
+      <header><div class="kicker">AST Instrumentation</div><h2>为什么这条链路可审计：AST 与可观测性</h2></header>
+      <div class="content split">
+        <div class="terminal"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>transform pipeline</div><pre>const pipeline = new BashTransformPipeline()
+  .use(new TeePlugin({ outputDir: "/tmp/logs" }))
+  .use(new CommandCollectorPlugin());
+
+const result = pipeline.transform("grep -R TODO src | head");
+
+result.script;             // 改写后的 bash
+result.metadata.commands;  // ["grep", "head"]</pre></div>
+        <div class="grid">
+          <div class="card" style="--accent: var(--cyan)"><div class="label">执行前审计</div><p>从 AST 提取命令列表，先判断会不会触碰网络、危险命令或大范围文件。</p></div>
+          <div class="card" style="--accent: var(--green)"><div class="label">自动插桩</div><p>用 TeePlugin 捕获每段命令输出，把 shell 过程变成可回放证据。</p></div>
+          <div class="card" style="--accent: var(--amber)"><div class="label">元数据反馈</div><p>让 harness 不只看最终 stdout，也能看“模型用了哪些动作”。</p></div>
+        </div>
+      </div>
+      <footer class="footer"><span>07 / AST</span><span class="source">parse / serialize / BashTransformPipeline / CommandCollectorPlugin / TeePlugin</span></footer>
+      <aside class="speaker">这是 just-bash 很容易被忽略的深层能力：shell 不是一串不可理解的字符串，它可以被 parse 成 AST，再被 instrument。</aside>
+    </section>
+
+    <section class="slide" data-title="需求">
+      <header><div class="kicker">Case Setup</div><h2>案例设定：30 分钟内生成可交付的舆情简报</h2></header>
+      <div class="content split">
+        <div>
+          <p class="statement">品牌团队不是只要一句“情绪偏负面”，而是要一份能支持升级决策的交付物：<strong>情绪分布、Top 风险、证据样例、建议动作</strong>。</p>
+          <div class="pill-row">
+            <span class="pill">positive / neutral / negative</span>
+            <span class="pill">battery_heat</span>
+            <span class="pill">support</span>
+            <span class="pill">stability</span>
+            <span class="pill">price_quality</span>
+          </div>
+        </div>
+        <div class="terminal"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>requirements.md</div><pre>- normalizePosts(posts)
+- normalizeTickets(csv)
+- scoreSignals(posts, tickets, catalog)
+- decideEscalation(summary, rulesText)
+- reports/incident-brief.md
+- reports/escalation-decision.json
+- 不可信帖子文本不能成为指令</pre></div>
+      </div>
+      <footer class="footer"><span>08 / Requirement</span><span class="source">把输入、输出和不可绕过的约束一次讲清</span></footer>
+      <aside class="speaker">重点讲：这里要交付的是能支撑升级决策的报告，所以功能需求和治理要求会一起进入 harness。</aside>
+    </section>
+
+    <section class="slide" data-title="工程闭环">
+      <header><div class="kicker">Agent Loop</div><h2>把需求翻成一条 agent 闭环</h2></header>
+      <div class="content">
+        <div class="flow">
+          <div class="step"><b>1. 观察</b><span>读 README、需求、架构、分析策略、样本数据。</span></div>
+          <div class="step"><b>2. 失败</b><span>运行测试，看到分类和聚合逻辑尚未实现。</span></div>
+          <div class="step"><b>3. 修改</b><span>编辑 `src/normalize.ts`、`src/risk-score.ts`、`src/escalation.ts`。</span></div>
+          <div class="step"><b>4. 验证</b><span>重新跑 `npm test`、`npm run lint`、`incident-guard`。</span></div>
+          <div class="step"><b>5. 交付</b><span>生成 `reports/incident-brief.md` 和 `reports/escalation-decision.json`。</span></div>
+        </div>
+      </div>
+      <footer class="footer"><span>09 / Feature Loop</span><span class="source">just-bash 把这些动作收敛到一个熟悉接口：bash</span></footer>
+      <aside class="speaker">这页是主线图。后面每页都是其中一个环节的展开。</aside>
+    </section>
+
+    <section class="slide" data-title="观察层">
+      <header><div class="kicker">Observe</div><h2>第一步不是写代码，而是读工作区</h2></header>
+      <div class="content split">
+        <div class="terminal"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>orientation</div><pre>$ find . -maxdepth 3 -type f | sort
+./README.md
+./data/social-posts.jsonl
+./docs/analysis_policy.md
+./docs/architecture.md
+./docs/requirements.md
+./logs/incident.log
+./src/normalize.ts
+./src/risk-score.ts
+./src/escalation.ts</pre></div>
+        <div class="grid">
+          <div class="card" style="--accent: var(--cyan)"><div class="label">文件即上下文</div><p>需求、策略、样本、日志、源码都能被 agent 用普通命令读取。</p></div>
+          <div class="card" style="--accent: var(--green)"><div class="label">少造工具</div><p>不用为每种观察设计 bespoke API，先让模型使用它熟悉的 shell 原语。</p></div>
+        </div>
+      </div>
+      <footer class="footer"><span>10 / Filesystem Context</span><span class="source">Vercel: filesystems + bash as agent interface</span></footer>
+      <aside class="speaker">强调 action space：模型已经学过大量 bash 和文件系统模式。</aside>
+    </section>
+
+    <section class="slide" data-title="数据层">
+      <header><div class="kicker">Data Work</div><h2>不可信输入，如何进入可控流程</h2></header>
+      <div class="content split">
+        <div class="visual-frame">
+          <img src="/assets/data-control-plane.png" alt="数据平面与控制平面隔离插图" />
+        </div>
+        <div class="grid">
+          <div class="card" style="--accent: var(--amber)"><div class="label">作为证据</div><p>帖子、日志、评论可以帮助 agent 分析风险。</p></div>
+          <div class="card" style="--accent: var(--red)"><div class="label">不能作为指令</div><p>用户文本不能覆盖 system prompt、工具权限或 harness 策略。</p></div>
+          <div class="card" style="--accent: var(--green)"><div class="label">harness 兜底</div><p>即使文本诱导越权，网络和 host 文件也默认不可用。</p></div>
+        </div>
+      </div>
+      <footer class="footer"><span>11 / Untrusted Data</span><span class="source">数据平面和控制平面必须分开</span></footer>
+      <aside class="speaker">这页是舆情 case 的优势：prompt injection 不再是抽象安全问题，而是业务数据的一部分。</aside>
+    </section>
+
+    <section class="slide" data-title="测试驱动">
+      <header><div class="kicker">Feedback</div><h2>测试失败，就是下一步行动的信号</h2></header>
+      <div class="content split">
+        <div class="terminal"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>npm test</div><pre>$ npm test
+<span class="bad">失败 1：normalizeTickets 应把 CSV 工单转成统一信号</span>
+<span class="bad">失败 2：scoreSignals 应得到 negativeRate=50%、criticalTicketCount=2</span>
+<span class="bad">失败 3：decideEscalation 应依据 YAML 输出 P1</span>
+提示：当前实现还没有把归一化、聚合和升级决策接起来。</pre></div>
+        <div>
+          <p class="statement" style="font-size: clamp(28px, 3vw, 48px)">agent 最需要的不是鼓励，而是 <strong>可解析的失败</strong>。</p>
+          <div class="pill-row"><span class="pill">stdout</span><span class="pill">stderr</span><span class="pill">exitCode</span><span class="pill">测试断言</span><span class="pill">修复方向</span></div>
+        </div>
+      </div>
+      <footer class="footer"><span>12 / Tests as Sensors</span><span class="source">错误输出是反馈回路的一部分</span></footer>
+      <aside class="speaker">把测试失败讲成传感器，而不是失败终点。</aside>
+    </section>
+
+    <section class="slide" data-title="实现功能">
+      <header><div class="kicker">Code Change</div><h2>在虚拟工作区里实现功能，再回到验证</h2></header>
+      <div class="content split">
+        <div class="stack">
+          <div class="grid three">
+            <div class="card" style="--accent: var(--cyan)"><div class="label">normalize</div><p>把社媒 JSONL 和客服 CSV 统一成 Incident Signals。</p></div>
+            <div class="card" style="--accent: var(--green)"><div class="label">risk-score</div><p>聚合负向占比、平台扩散、关键工单数和证据链。</p></div>
+            <div class="card" style="--accent: var(--amber)"><div class="label">escalation</div><p>根据 YAML 规则判断 P1 / P2 / Monitor。</p></div>
+          </div>
+          <div class="card" style="--accent: var(--blue)"><div class="label">Layering</div><p>这三个模块把“归一化、聚合、升级判断”拆开，测试更清晰，后续替换规则或模型也更容易。</p></div>
+        </div>
+        <div class="terminal"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>verify</div><pre>$ npm test && npm run lint
+<span class="ok">结果：5/5 通过</span>
+<span class="ok">lint：incident response 核心规则检查通过</span></pre></div>
+      </div>
+      <footer class="footer"><span>13 / Implementation</span><span class="source">写代码发生在虚拟 FS，不直接污染宿主机</span></footer>
+      <aside class="speaker">这里要点：不是“展示代码多复杂”，而是展示 agent 可以在测试约束下安全修改代码。</aside>
+    </section>
+
+    <section class="slide" data-title="报告 artifact">
+      <header><div class="kicker">Artifact</div><h2>交付物必须能被人、CI 和下一轮 agent 接住</h2></header>
+      <div class="content split">
+        <div class="visual-frame">
+          <img src="/assets/artifact-chain.png" alt="双 artifact 交付链插图" />
+        </div>
+        <div>
+          <p class="statement" style="font-size: clamp(28px, 3vw, 48px)">好的 agent 输出应该能被 <strong>人、CI、下一轮 agent</strong> 接住。</p>
+          <div class="pill-row"><span class="pill">incident-brief.md</span><span class="pill">escalation-decision.json</span><span class="pill">样本 id</span><span class="pill">guard</span></div>
+          <p class="caption">这两个 artifact 分别服务于不同的消费方：结构化 JSON 适合系统流程接入，Markdown 简报适合管理层和 oncall 快速审阅。</p>
+        </div>
+      </div>
+      <footer class="footer"><span>14 / Reviewable Output</span><span class="source">artifact 是 harness 的长期记忆</span></footer>
+      <aside class="speaker">强调 artifact：让 agent 的工作结果从临时对话变成工程对象。</aside>
+    </section>
+
+    <section class="slide" data-title="安全边界">
+      <header><div class="kicker">Threat Model</div><h2>出界时能被拦住，才叫安全边界</h2></header>
+      <div class="content"><div class="note-strip"><strong>判断标准：</strong>真正可用的 agent 不是“能做很多事”，而是“出界时能被稳稳拦住”。</div></div>
+      <div class="content risk-grid">
+        <div class="risk-card" style="--accent: var(--red)">
+          <h3>不可信脚本</h3>
+          <div class="meta">
+            <div><b>Scenario</b><span>模型会生成 bash、编辑代码、运行命令，这本身就是可执行能力。</span></div>
+            <div><b>Harness</b><span>用虚拟文件系统、自定义命令和执行上限把能力关进边界里。</span></div>
+          </div>
+        </div>
+        <div class="risk-card" style="--accent: var(--amber)">
+          <h3>数据注入</h3>
+          <div class="meta">
+            <div><b>Scenario</b><span>帖子文本可能诱导读取 host 文件、泄露信息或绕过系统策略。</span></div>
+            <div><b>Harness</b><span>数据只进入分析回路，不进入控制面；host 文件与网络默认不可用。</span></div>
+          </div>
+        </div>
+        <div class="risk-card" style="--accent: var(--blue)">
+          <h3>输出污染</h3>
+          <div class="meta">
+            <div><b>Scenario</b><span>报告可能逐字扩散恶意文案、敏感内容或未经验证的判断。</span></div>
+            <div><b>Harness</b><span>用 incident-guard 检查结构、证据引用和文本策略，再决定是否交付。</span></div>
+          </div>
+        </div>
+        <div class="risk-card" style="--accent: var(--green)">
+          <h3>资源滥用</h3>
+          <div class="meta">
+            <div><b>Scenario</b><span>无限循环、大输出、深递归会让 agent 变慢、失控或拖垮环境。</span></div>
+            <div><b>Harness</b><span>对命令数量、循环长度、字符串规模和运行时长做硬限制。</span></div>
+          </div>
+        </div>
+      </div>
+      <footer class="footer"><span>15 / Threat Model Mapping</span><span class="source"><a href="https://github.com/vercel-labs/just-bash/blob/main/THREAT_MODEL.md">just-bash THREAT_MODEL.md</a></span></footer>
+      <aside class="speaker">这里把 just-bash threat model 翻译成舆情系统语言。</aside>
+    </section>
+
+    <section class="slide" data-title="现场 demo">
+      <header><div class="kicker">Live Demo</div><h2>现在看它真正跑一遍</h2></header>
+      <div class="content split">
+        <div>
+          <p class="quote">让模型把这条链路真正走完：读需求、看数据、接收失败、改代码、通过验证、产出 artifact、再被边界约束住。</p>
+          <p class="caption">建议先点“中文回放演示”。真实模型模式支持 OpenAI 直连，也支持 Vercel AI Gateway：在 `.env` 中设置 `MODEL_PROVIDER=gateway`、`AI_GATEWAY_API_KEY` 和 `AI_GATEWAY_MODEL`。</p>
+          <div class="pill-row"><a class="demo-link" href="/demo">打开 /demo</a><span class="pill">OpenAI 直连</span><span class="pill">Vercel AI Gateway</span><span class="pill">按 D 也可以打开</span></div>
+        </div>
+        <div class="watch-grid">
+          <div class="watch-item"><b>01 · 建立上下文</b><span>看模型是不是先用 `find / cat / grep / jq` 理解工作区，而不是直接盲写。</span></div>
+          <div class="watch-item"><b>02 · 接收失败</b><span>看 `npm test` 的失败输出是否成为下一步行动的控制信号。</span></div>
+          <div class="watch-item"><b>03 · 改写实现</b><span>看它是否在 `normalize / risk-score / escalation` 之间做出合理分层。</span></div>
+          <div class="watch-item"><b>04 · 再次验证</b><span>看它会不会主动回到测试、lint 与 guard，而不是只给口头解释。</span></div>
+          <div class="watch-item"><b>05 · 产出文件</b><span>看最终是不是生成可复核的 JSON 决策和 Markdown 简报。</span></div>
+          <div class="watch-item"><b>06 · 边界阻断</b><span>看注入文本、host 文件、网络和无限循环如何被 Harness 拦住。</span></div>
+        </div>
+      </div>
+      <footer class="footer"><span>16 / Demo Moment</span><span class="source">交互 demo 地址：<a href="/demo">http://localhost:4321/demo</a></span></footer>
+      <aside class="speaker">切 demo 前讲清楚观众应该观察哪些信号。</aside>
+    </section>
+
+    <section class="slide" data-title="生产化清单">
+      <header><div class="kicker">Production Checklist</div><h2>从 demo 到生产，还要补哪些层</h2></header>
+      <div class="content grid two">
+        <div class="card" style="--accent: var(--cyan)"><div class="label">数据入口</div><p>把抓取、脱敏、去重、采样做成独立受控 pipeline。</p></div>
+        <div class="card" style="--accent: var(--green)"><div class="label">分析核心</div><p>用测试集、golden cases、评估指标约束分类和风险提取。</p></div>
+        <div class="card" style="--accent: var(--amber)"><div class="label">报告治理</div><p>报告必须引用证据 id，避免逐字传播注入文本和敏感信息。</p></div>
+        <div class="card" style="--accent: var(--blue)"><div class="label">权限分层</div><p>抓取、分析、写报告、外发通知应是不同工具和不同审批路径。</p></div>
+        <div class="card" style="--accent: var(--red)"><div class="label">人工升级</div><p>高风险舆情、证据冲突、guard 失败时默认交给人。</p></div>
+        <div class="card" style="--accent: var(--green)"><div class="label">审计轨迹</div><p>保存 tool call、输出、artifact diff 和最终报告。</p></div>
+      </div>
+      <footer class="footer"><span>17 / Production</span><span class="source">demo 是最小闭环，生产需要更强的数据和权限治理</span></footer>
+      <aside class="speaker">这里避免“demo 即生产”的误解，说明扩展路线。</aside>
+    </section>
+
+    <section class="slide" data-title="结论">
+      <header><div class="kicker">Takeaway</div><h2>把模型放进受控工作台，而不是裸 shell</h2></header>
+      <div class="content split">
+        <div class="stack">
+          <p class="statement">这个案例真正展示的，不是“模型会不会分析舆情”，而是它如何把 <strong>写代码、处理多源数据、依据规则做决策、生成 artifact、验证输出、安全边界</strong> 放进同一个可观察回路。</p>
+          <div class="note-strip"><strong>角色变化：</strong>工程师不再手动实现每一个动作，而是设计环境、标准、反馈和升级边界；agent 负责在这条轨道上执行。</div>
+        </div>
+        <div class="grid two">
+          <div class="card" style="--accent: var(--cyan)"><div class="label">Observe</div><p>需求、架构、数据、日志。</p></div>
+          <div class="card" style="--accent: var(--green)"><div class="label">Act</div><p>编辑代码、运行命令、生成报告。</p></div>
+          <div class="card" style="--accent: var(--amber)"><div class="label">Verify</div><p>测试、lint、guard、证据 id。</p></div>
+          <div class="card" style="--accent: var(--blue)"><div class="label">Steer</div><p>人定义标准，agent 在边界内执行。</p></div>
+        </div>
+      </div>
+      <footer class="footer"><span>18 / Takeaway</span><span class="source">从代码生成器，到 Feature Agent Harness</span></footer>
+      <aside class="speaker">最后收束到 harness engineering：工程师上升到设计环境、标准和反馈回路。</aside>
+    </section>
+
+    <section class="slide" data-title="引用">
+      <header><div class="kicker">References</div><h2>资料与延伸阅读</h2></header>
+      <div class="content"><div class="note-strip"><strong>说明：</strong>Presentation 正文以转述为主，原始引用和延伸阅读统一放在最后一页，方便现场跳转。</div></div>
+      <div class="content refs-grid">
+        <div class="ref-card">
+          <b>Harness Engineering</b>
+          <p><a href="https://openai.com/index/harness-engineering/">OpenAI · Harness engineering: leveraging Codex in an agent-first world</a></p>
+          <p>作为这次理论起点，帮助解释“工程师角色为什么从手写代码转向设计回路”。</p>
+        </div>
+        <div class="ref-card">
+          <b>Agent Interface</b>
+          <p><a href="https://vercel.com/blog/how-to-build-agents-with-filesystems-and-bash">Vercel · How to build agents with filesystems and bash</a></p>
+          <p><a href="https://vercel.com/blog/testing-if-bash-is-all-you-need">Vercel · Testing if "bash is all you need"</a></p>
+          <p>对应 just-bash 的接口设计思路，以及“bash 是否足够好用”的实验背景。</p>
+        </div>
+        <div class="ref-card">
+          <b>just-bash</b>
+          <p><a href="https://github.com/vercel-labs/just-bash">GitHub · just-bash repository</a></p>
+          <p><a href="https://github.com/vercel-labs/just-bash/blob/main/THREAT_MODEL.md">GitHub · THREAT_MODEL.md</a></p>
+          <p>重点可看 Filesystem Options、Custom Commands、AST Transform Plugins 与 Threat Model。</p>
+        </div>
+      </div>
+      <footer class="footer"><span>19 / References</span><span class="source">完</span></footer>
+      <aside class="speaker">来源页保留，方便现场打开链接。</aside>
+    </section>
+  </main>
+
+  <div class="controls" aria-label="presentation controls">
+    <button id="prev" type="button">←</button>
+    <span id="counter">1 / 19</span>
+    <button id="next" type="button">→</button>
+    <button id="notesBtn" type="button">Notes</button>
+    <button id="overviewBtn" type="button">目录</button>
+    <a class="demo-link" href="/demo">Demo</a>
+  </div>
+  <div class="progress"><span id="progress"></span></div>
+  <div class="notes" id="notes"></div>
+  <div class="overview" id="overview">
+    <div class="kicker" style="margin-bottom: 18px">Slide Overview · 点击跳转，按 O 关闭</div>
+    <div class="overview-grid" id="overviewGrid"></div>
+  </div>
+
+  <script>
+    const deck = document.getElementById("deck");
+    const orderedTitles = [
+      "代码层控制回路",
+      "just-bash：把控制回路变成工程接口",
+      "just-bash 能力栈",
+      "为什么这个案例",
+      "需求",
+      "工程闭环",
+      "观察层",
+      "数据层",
+      "测试驱动",
+      "实现功能",
+      "报告 artifact",
+      "OverlayFS",
+      "自定义命令",
+      "AST 与可观测性",
+      "安全边界",
+      "现场 demo",
+      "生产化清单",
+      "结论",
+      "引用"
+    ];
+    const footerLabels = {
+      "代码层控制回路": "Control Loop Lineage",
+      "just-bash：把控制回路变成工程接口": "Harness to Interface",
+      "just-bash 能力栈": "just-bash Stack",
+      "为什么这个案例": "Transition to Case",
+      "需求": "Requirement",
+      "工程闭环": "Feature Loop",
+      "观察层": "Filesystem Context",
+      "数据层": "Untrusted Data",
+      "测试驱动": "Tests as Sensors",
+      "实现功能": "Implementation",
+      "报告 artifact": "Reviewable Output",
+      "OverlayFS": "OverlayFS",
+      "自定义命令": "Custom Commands",
+      "AST 与可观测性": "AST",
+      "安全边界": "Threat Model Mapping",
+      "现场 demo": "Demo Moment",
+      "生产化清单": "Production",
+      "结论": "Takeaway",
+      "引用": "References"
+    };
+    const originalSlides = Array.from(deck.querySelectorAll(".slide"));
+    const slideByTitle = new Map(originalSlides.map((slide) => [slide.dataset.title, slide]));
+    const reorderedSlides = orderedTitles.map((title) => slideByTitle.get(title)).filter(Boolean);
+    const slides = reorderedSlides.length === originalSlides.length ? reorderedSlides : originalSlides;
+    slides.forEach((slide) => deck.appendChild(slide));
+    slides.forEach((slide, idx) => {
+      const footerIndex = slide.querySelector(".footer span:first-child");
+      if (footerIndex) {
+        const label = footerLabels[slide.dataset.title] || slide.dataset.title || `Slide ${idx + 1}`;
+        footerIndex.textContent = `${String(idx + 1).padStart(2, "0")} / ${label}`;
+      }
+    });
+    const counter = document.getElementById("counter");
+    const progress = document.getElementById("progress");
+    const notes = document.getElementById("notes");
+    const overview = document.getElementById("overview");
+    const overviewGrid = document.getElementById("overviewGrid");
+    let index = Number(new URLSearchParams(location.search).get("slide") || 1) - 1;
+    index = Math.min(Math.max(index, 0), slides.length - 1);
+
+    function render() {
+      slides.forEach((slide, idx) => slide.classList.toggle("active", idx === index));
+      counter.textContent = `${index + 1} / ${slides.length}`;
+      progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+      const speaker = slides[index].querySelector(".speaker");
+      notes.textContent = speaker ? speaker.textContent.trim() : "";
+      const url = new URL(location.href);
+      url.searchParams.set("slide", String(index + 1));
+      history.replaceState(null, "", url);
+    }
+
+    function go(delta) {
+      index = Math.min(Math.max(index + delta, 0), slides.length - 1);
+      render();
+    }
+
+    function jump(nextIndex) {
+      index = Math.min(Math.max(nextIndex, 0), slides.length - 1);
+      overview.classList.remove("visible");
+      render();
+    }
+
+    function toggleNotes() { notes.classList.toggle("visible"); }
+    function toggleOverview() { overview.classList.toggle("visible"); }
+
+    document.getElementById("prev").addEventListener("click", () => go(-1));
+    document.getElementById("next").addEventListener("click", () => go(1));
+    document.getElementById("notesBtn").addEventListener("click", toggleNotes);
+    document.getElementById("overviewBtn").addEventListener("click", toggleOverview);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") go(1);
+      if (event.key === "ArrowLeft" || event.key === "PageUp") go(-1);
+      if (event.key.toLowerCase() === "n") toggleNotes();
+      if (event.key.toLowerCase() === "o") toggleOverview();
+      if (event.key.toLowerCase() === "d") location.href = "/demo";
+      if (event.key === "Escape") {
+        notes.classList.remove("visible");
+        overview.classList.remove("visible");
+      }
+    });
+
+    overviewGrid.innerHTML = slides.map((slide, idx) => {
+      const title = slide.dataset.title || `Slide ${idx + 1}`;
+      const heading = slide.querySelector("h1, h2")?.textContent?.trim() || title;
+      return `<div class="thumb" data-index="${idx}"><b>${String(idx + 1).padStart(2, "0")} · ${escapeHtml(title)}</b><span>${escapeHtml(heading)}</span></div>`;
+    }).join("");
+
+    overviewGrid.addEventListener("click", (event) => {
+      const thumb = event.target.closest(".thumb");
+      if (thumb) jump(Number(thumb.dataset.index));
+    });
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>just-bash Threat Model</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --bg-2: #0b1b2c;
+      --panel: #10243a;
+      --panel-2: #132b45;
+      --line: #274761;
+      --text: #f4f7fa;
+      --muted: #afc1cf;
+      --dim: #6f879a;
+      --cyan: #34d3ff;
+      --cyan-dark: #0a7ea4;
+      --amber: #f6b44b;
+      --red: #ff6b6b;
+      --green: #4fe3a4;
+      --shadow: 0 22px 80px rgba(0, 0, 0, 0.34);
+      --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      --mono: Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #020710;
+      color: var(--text);
+      font-family: var(--font);
+      overflow: hidden;
+    }
+
+    .deck {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background:
+        radial-gradient(circle at 4% 8%, rgba(52, 211, 255, 0.18), transparent 28%),
+        radial-gradient(circle at 94% 10%, rgba(246, 180, 75, 0.14), transparent 32%),
+        radial-gradient(circle at 84% 92%, rgba(79, 227, 164, 0.12), transparent 28%),
+        var(--bg);
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      padding: 54px 64px 46px;
+      overflow: hidden;
+    }
+
+    .slide.active { display: block; }
+
+    .slide::after {
+      content: "";
+      position: absolute;
+      left: 64px;
+      right: 64px;
+      bottom: 58px;
+      height: 1px;
+      background: var(--line);
+      opacity: 0.86;
+    }
+
+    .kicker {
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      max-width: 780px;
+      margin-top: 24px;
+      font-size: clamp(48px, 5vw, 72px);
+      line-height: 0.98;
+      letter-spacing: -0.05em;
+    }
+
+    h2 {
+      max-width: 900px;
+      margin-top: 16px;
+      font-size: clamp(34px, 3.6vw, 52px);
+      line-height: 1.06;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      max-width: 820px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 22px;
+      line-height: 1.45;
+    }
+
+    .footer {
+      position: absolute;
+      left: 64px;
+      bottom: 24px;
+      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 12px;
+      z-index: 5;
+    }
+
+    .card-grid {
+      display: grid;
+      gap: 24px;
+      margin-top: 54px;
+    }
+
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+
+    .card {
+      position: relative;
+      min-height: 188px;
+      padding: 24px 24px 24px 30px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(19, 43, 69, 0.94), rgba(10, 28, 46, 0.94));
+      box-shadow: var(--shadow);
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 7px;
+      border-radius: 22px 0 0 22px;
+      background: var(--accent, var(--cyan));
+    }
+
+    .label {
+      color: var(--accent, var(--cyan));
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .card p, .card li {
+      margin-top: 16px;
+      color: var(--text);
+      font-size: 21px;
+      line-height: 1.45;
+    }
+
+    .small p, .small li { font-size: 18px; }
+
+    ul.clean {
+      margin: 14px 0 0;
+      padding-left: 0;
+      list-style: none;
+    }
+
+    ul.clean li {
+      margin-top: 9px;
+      color: var(--muted);
+    }
+
+    .terminal {
+      position: absolute;
+      right: 92px;
+      top: 142px;
+      width: 505px;
+      height: 324px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: #081727;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .terminal .bar {
+      height: 44px;
+      background: #0f2d47;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding-left: 20px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .terminal pre {
+      margin: 0;
+      padding: 36px 38px;
+      color: var(--green);
+      font-family: var(--mono);
+      font-size: 20px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 34px;
+      max-width: 560px;
+    }
+
+    .pill {
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      padding: 10px 16px;
+      color: var(--cyan);
+      background: rgba(52, 211, 255, 0.12);
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .pill.amber { color: var(--amber); background: rgba(246, 180, 75, 0.12); }
+    .pill.green { color: var(--green); background: rgba(79, 227, 164, 0.12); }
+    .pill.red { color: var(--red); background: rgba(255, 107, 107, 0.12); }
+
+    .system {
+      position: relative;
+      margin: 48px auto 0;
+      width: 1040px;
+      height: 382px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: rgba(11, 32, 52, 0.9);
+      box-shadow: var(--shadow);
+    }
+
+    .system-title {
+      position: absolute;
+      left: 28px;
+      top: 24px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-weight: 800;
+    }
+
+    .sandbox {
+      position: absolute;
+      left: 160px;
+      top: 96px;
+      width: 720px;
+      height: 202px;
+      border: 2px solid var(--cyan);
+      border-radius: 24px;
+      background: rgba(16, 44, 69, 0.98);
+    }
+
+    .sandbox-title {
+      position: absolute;
+      left: 28px;
+      top: 22px;
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    .node-row {
+      position: absolute;
+      left: 70px;
+      top: 92px;
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .node {
+      width: 126px;
+      height: 62px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #071827;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .arrow {
+      width: 34px;
+      height: 2px;
+      background: var(--cyan);
+      position: relative;
+    }
+
+    .arrow::after {
+      content: "";
+      position: absolute;
+      right: -1px;
+      top: -5px;
+      border-left: 10px solid var(--cyan);
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+    }
+
+    .boundary-callout {
+      position: absolute;
+      bottom: 26px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--amber);
+      font-weight: 900;
+      font-size: 22px;
+    }
+
+    .external, .host-resources {
+      position: absolute;
+      bottom: 42px;
+      width: 240px;
+      min-height: 74px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px 18px;
+      background: rgba(7, 17, 31, 0.78);
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.35;
+    }
+
+    .external { left: 28px; }
+    .host-resources { right: 28px; }
+
+    .boundary-list {
+      margin-top: 38px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .boundary-row {
+      display: grid;
+      grid-template-columns: 96px 330px 1fr;
+      align-items: center;
+      min-height: 66px;
+      padding: 0 26px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(16, 36, 58, 0.88);
+    }
+
+    .boundary-row b {
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-size: 20px;
+    }
+
+    .boundary-row strong {
+      font-size: 20px;
+    }
+
+    .boundary-row span {
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .attack-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      margin-top: 42px;
+    }
+
+    .attack-grid .card {
+      min-height: 142px;
+      padding: 18px 18px 18px 24px;
+    }
+
+    .attack-grid .card p {
+      font-size: 16px;
+      color: var(--muted);
+    }
+
+    .layers {
+      position: relative;
+      margin: 44px auto 0;
+      width: 960px;
+    }
+
+    .layer {
+      margin: 11px auto;
+      min-height: 54px;
+      border: 1px solid currentColor;
+      border-radius: 18px;
+      padding: 15px 28px;
+      color: var(--cyan);
+      background: rgba(52, 211, 255, 0.12);
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .layer:nth-child(2n) { color: var(--green); background: rgba(79, 227, 164, 0.10); }
+    .layer:nth-child(3n) { color: var(--amber); background: rgba(246, 180, 75, 0.10); }
+    .layer:nth-child(4n) { color: var(--red); background: rgba(255, 107, 107, 0.10); }
+
+    .layer b {
+      font-size: 18px;
+    }
+
+    .layer span {
+      color: var(--text);
+      font-size: 16px;
+    }
+
+    .scenario-table {
+      margin-top: 42px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: rgba(12, 32, 52, 0.95);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .scenario-row {
+      display: grid;
+      grid-template-columns: 340px 1fr 150px;
+      min-height: 48px;
+      align-items: center;
+      border-top: 1px solid rgba(39, 71, 97, 0.7);
+      padding: 0 26px;
+      gap: 22px;
+    }
+
+    .scenario-row:first-child {
+      border-top: 0;
+      color: var(--cyan);
+      font-family: var(--mono);
+      font-weight: 900;
+      background: rgba(52, 211, 255, 0.08);
+    }
+
+    .scenario-row code {
+      font-family: var(--mono);
+      color: var(--text);
+      font-size: 15px;
+    }
+
+    .scenario-row span { color: var(--muted); }
+
+    .badge {
+      display: inline-block;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      padding: 7px 12px;
+      text-align: center;
+      font-family: var(--mono);
+      font-weight: 900;
+      font-size: 12px;
+    }
+
+    .guidance {
+      margin-top: 36px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .guide-row {
+      display: grid;
+      grid-template-columns: 54px 290px 1fr;
+      gap: 22px;
+      align-items: center;
+      min-height: 66px;
+    }
+
+    .number {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--amber);
+      color: var(--bg);
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-weight: 900;
+    }
+
+    .guide-row strong {
+      font-size: 21px;
+    }
+
+    .guide-row span {
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.35;
+    }
+
+    .takeaway-panel {
+      position: absolute;
+      right: 120px;
+      top: 170px;
+      width: 320px;
+      height: 350px;
+      border: 1px solid var(--cyan);
+      border-radius: 28px;
+      background: rgba(12, 32, 52, 0.96);
+      box-shadow: var(--shadow);
+      padding: 38px 34px;
+      text-align: center;
+    }
+
+    .takeaway-panel h3 {
+      margin-top: 0;
+      font-size: 30px;
+      color: var(--green);
+    }
+
+    .takeaway-panel p {
+      margin: 8px 0 26px;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .controls {
+      position: fixed;
+      right: 28px;
+      bottom: 22px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .controls button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(7, 17, 31, 0.8);
+      color: var(--muted);
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    .progress {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      height: 4px;
+      width: 100vw;
+      background: rgba(39, 71, 97, 0.75);
+      z-index: 30;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--cyan), var(--green));
+      transition: width 180ms ease;
+    }
+
+    .notes-panel {
+      position: fixed;
+      left: 50%;
+      bottom: 52px;
+      transform: translateX(-50%);
+      width: min(960px, calc(100vw - 80px));
+      max-height: 180px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px 22px;
+      background: rgba(2, 7, 16, 0.92);
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+      box-shadow: var(--shadow);
+      display: none;
+      z-index: 25;
+    }
+
+    body.show-notes .notes-panel { display: block; }
+
+    .source-link {
+      position: absolute;
+      right: 64px;
+      bottom: 24px;
+      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 11px;
+      z-index: 5;
+    }
+
+    @media print {
+      body { overflow: visible; background: white; }
+      .deck { width: auto; height: auto; background: white; }
+      .slide {
+        position: relative;
+        display: block !important;
+        width: 1280px;
+        height: 720px;
+        page-break-after: always;
+      }
+      .controls, .progress, .notes-panel { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck">
+    <section class="slide active" data-notes="Opening: just-bash is not trying to be a full VM. It gives agents the familiar bash/filesystem interface, then constrains and instruments that interface so it can be used safely. Sources: README and THREAT_MODEL.md.">
+      <div class="kicker">AI AGENT SECURITY</div>
+      <h1>just-bash<br />Threat Model</h1>
+      <p class="subtitle">给 AI agent 一个熟悉、可控、可观测的 shell。</p>
+      <div class="pills">
+        <span class="pill">TypeScript bash interpreter</span>
+        <span class="pill amber">In-memory / Overlay FS</span>
+        <span class="pill green">Designed for AI agents</span>
+      </div>
+      <div class="terminal">
+        <div class="bar"><span class="dot" style="background: var(--red)"></span><span class="dot" style="background: var(--amber)"></span><span class="dot" style="background: var(--green)"></span><span style="margin-left: 12px">agent action space</span></div>
+        <pre>$ grep -r TODO src | head
+$ cat package.json
+$ sqlite3 data.db 'select count(*) from events'
+$ curl -s https://api.example.com | jq .</pre>
+      </div>
+      <div class="footer">just-bash threat model · 01</div>
+    </section>
+
+    <section class="slide" data-notes="Frame the product tradeoff: models benefit from a broad, composable interface. The security work is to keep the interface useful while constraining what it can actually touch.">
+      <div class="kicker">WHY IT EXISTS</div>
+      <h2>Agent 需要 shell，但不能直接给真实 bash</h2>
+      <p class="subtitle">核心问题不是“bash 强不强”，而是 action space 是否可控。</p>
+      <div class="card-grid grid-3">
+        <article class="card" style="--accent: var(--cyan)"><div class="label">为什么给 bash</div><p>模型已经熟悉文件、grep、管道、重定向、脚本组合；bash 是低摩擦的通用动作语言。</p></article>
+        <article class="card" style="--accent: var(--red)"><div class="label">为什么不能给真 bash</div><p>真实 shell 可以读 host 文件、跑二进制、访问网络、消耗资源、泄露 secrets。</p></article>
+        <article class="card" style="--accent: var(--green)"><div class="label">just-bash 的折中</div><p>保留 shell 交互形态，但把文件系统、命令、网络、运行时都放进可审计边界。</p></article>
+      </div>
+      <div class="footer">just-bash threat model · 02</div>
+    </section>
+
+    <section class="slide" data-notes="The threat model is explicit about trusted vs untrusted components. The host-provided fs/fetch/custom commands/plugins are trusted hooks; if the host is malicious, just-bash cannot sandbox the host from itself.">
+      <div class="kicker">SYSTEM SHAPE</div>
+      <h2>安全边界：host 进程里的一层 sandbox</h2>
+      <p class="subtitle">它保护 host 不受 untrusted scripts 影响；不保护你免受 malicious host hook 影响。</p>
+      <div class="system">
+        <div class="system-title">HOST PROCESS (Node.js)</div>
+        <div class="sandbox">
+          <div class="sandbox-title">JUST-BASH SANDBOX</div>
+          <div class="node-row">
+            <div class="node">Parser</div><div class="arrow"></div>
+            <div class="node">AST</div><div class="arrow"></div>
+            <div class="node">Interpreter</div><div class="arrow"></div>
+            <div class="node">Commands</div>
+          </div>
+        </div>
+        <div class="external"><b style="color: var(--red)">外部输入</b><br />脚本输入 / 数据源</div>
+        <div class="host-resources"><b style="color: var(--amber)">host 资源</b><br />真实文件、env、网络、child_process</div>
+        <div class="boundary-callout">Trust boundary</div>
+      </div>
+      <div class="footer">just-bash threat model · 03</div>
+    </section>
+
+    <section class="slide" data-notes="The important point: the threat model is unusually explicit that the script is zero-trust. This makes sense because agent output is the primary input to the shell.">
+      <div class="kicker">THREAT ACTORS</div>
+      <h2>首要 adversary 是脚本作者</h2>
+      <p class="subtitle">把 AI agent 当成会提交任意 bash 的不可信用户。</p>
+      <div class="card-grid grid-3">
+        <article class="card small" style="--accent: var(--red)"><div class="label">1A · Untrusted Script Author</div><ul class="clean"><li>Who: AI agent 或用户</li><li>Capability: 完全控制脚本输入</li><li>Goal: escape、读 host FS、泄露 secrets、DoS、提权</li><li>Trust: ZERO</li></ul></article>
+        <article class="card small" style="--accent: var(--amber)"><div class="label">1B · Malicious Data Source</div><ul class="clean"><li>Who: HTTP 响应、文件内容、stdin</li><li>Capability: 控制 expansion、变量、参数里的数据</li><li>Goal: prototype pollution、IFS 注入、path traversal</li></ul></article>
+        <article class="card small" style="--accent: var(--cyan)"><div class="label">1C · Compromised Dependency</div><ul class="clean"><li>Who: npm supply-chain attacker</li><li>Capability: import-time code execution</li><li>Status: 运行时防御范围外，但属于部署加固问题</li></ul></article>
+      </div>
+      <div class="footer">just-bash threat model · 04</div>
+    </section>
+
+    <section class="slide" data-notes="Use this slide to slow down: trust boundaries are more important than the long attack inventory. They explain why the defenses are shaped the way they are.">
+      <div class="kicker">TRUST BOUNDARIES</div>
+      <h2>五条边界决定了防御设计</h2>
+      <p class="subtitle">每条边界都有一个对应的失败模式。</p>
+      <div class="boundary-list">
+        <div class="boundary-row"><b>TB1</b><strong>Script → Parser</strong><span>任意输入不能 crash、hang、泄露信息</span></div>
+        <div class="boundary-row"><b>TB2</b><strong>Interpreter → Filesystem</strong><span>必须限制在 sandbox root，阻断 symlink escape</span></div>
+        <div class="boundary-row"><b>TB3</b><strong>Interpreter → Network</strong><span>默认关闭；开启后必须 URL / method allow-list</span></div>
+        <div class="boundary-row"><b>TB4</b><strong>Interpreter → Host Process</strong><span>不得访问 env、Node internals、child_process</span></div>
+        <div class="boundary-row"><b>TB5</b><strong>Data → JS key space</strong><span>用户数据进入 object key 时防 prototype pollution</span></div>
+      </div>
+      <div class="footer">just-bash threat model · 05</div>
+    </section>
+
+    <section class="slide" data-notes="The threat model's attack surface inventory is valuable because it is concrete: it names both the vector and the file where the defense lives. Present this as an engineering checklist, not a theoretical taxonomy.">
+      <div class="kicker">ATTACK SURFACE MAP</div>
+      <h2>攻击面不是一个点，而是一张面</h2>
+      <p class="subtitle">parser、expansion、FS、network、JS escape、DoS、prototype pollution 都要分别处理。</p>
+      <div class="attack-grid">
+        <article class="card" style="--accent: var(--cyan)"><div class="label">Parser</div><p>token bomb / 深层嵌套 / oversized input</p></article>
+        <article class="card" style="--accent: var(--amber)"><div class="label">Expansion</div><p>brace bomb / glob bomb / string growth</p></article>
+        <article class="card" style="--accent: var(--green)"><div class="label">Filesystem</div><p>path traversal / symlink escape / path leak</p></article>
+        <article class="card" style="--accent: var(--red)"><div class="label">Network</div><p>SSRF / redirects / response bomb</p></article>
+        <article class="card" style="--accent: var(--red)"><div class="label">JS Escape</div><p>Function / eval / import() / process.*</p></article>
+        <article class="card" style="--accent: var(--amber)"><div class="label">DoS</div><p>infinite loop / recursion / regex / FD exhaustion</p></article>
+        <article class="card" style="--accent: var(--cyan)"><div class="label">Data Integrity</div><p>__proto__ / constructor / unsafe object keys</p></article>
+        <article class="card" style="--accent: var(--green)"><div class="label">Info Leak</div><p>process.env / argv / stack paths / timing</p></article>
+      </div>
+      <div class="footer">just-bash threat model · 06</div>
+    </section>
+
+    <section class="slide" data-notes="Emphasize the hierarchy: defense-in-depth is useful, but the primary safety property is no intended path from bash interpretation to host JS execution or host resources.">
+      <div class="kicker">DEFENSE LAYERS</div>
+      <h2>Primary defense 是架构；secondary defense 是兜底</h2>
+      <p class="subtitle">不要把 monkey-patching 误读成唯一安全边界。</p>
+      <div class="layers">
+        <div class="layer"><b>Architecture</b><span>没有 child_process 代码路径；命令只跑注册的 JS 实现</span></div>
+        <div class="layer"><b>Virtual FS</b><span>InMemoryFs / OverlayFs；symlink 默认 deny；写入可停留内存</span></div>
+        <div class="layer"><b>Network</b><span>默认没有 curl；开启后 URL prefix + method allow-list + redirect check</span></div>
+        <div class="layer"><b>Execution Limits</b><span>loop / command / call depth / string / glob / FD 上限</span></div>
+        <div class="layer"><b>Data Guards</b><span>Map、null-prototype objects、safeGet/safeSet</span></div>
+        <div class="layer"><b>Defense-in-Depth</b><span>Function、eval、process.*、Module._resolveFilename 等二级阻断</span></div>
+      </div>
+      <div class="footer">just-bash threat model · 07</div>
+    </section>
+
+    <section class="slide" data-notes="This slide should be presented as the payoff of the threat model. If a model cannot produce scenario verdicts, it is not operational enough.">
+      <div class="kicker">SCENARIOS</div>
+      <h2>威胁模型最后要能回答：这个攻击怎么结束？</h2>
+      <p class="subtitle">把安全讨论落到 verdict，而不是抽象形容词。</p>
+      <div class="scenario-table">
+        <div class="scenario-row"><div>Scenario</div><div>Defense path</div><div>Verdict</div></div>
+        <div class="scenario-row"><code>cat /etc/passwd</code><span>OverlayFs / root containment</span><span class="badge" style="color: var(--green)">BLOCKED</span></div>
+        <div class="scenario-row"><code>ln -s /etc/passwd x</code><span>allowSymlinks=false</span><span class="badge" style="color: var(--green)">BLOCKED</span></div>
+        <div class="scenario-row"><code>while true; do :; done</code><span>maxLoopIterations</span><span class="badge" style="color: var(--green)">BLOCKED</span></div>
+        <div class="scenario-row"><code>curl evil.com</code><span>network off / allow-list</span><span class="badge" style="color: var(--green)">BLOCKED</span></div>
+        <div class="scenario-row"><code>arr[__proto__]=evil</code><span>Map / null-prototype</span><span class="badge" style="color: var(--green)">BLOCKED</span></div>
+        <div class="scenario-row"><code>python escape</code><span>opt-in WASM + worker + timeout</span><span class="badge" style="color: var(--amber)">RESIDUAL</span></div>
+      </div>
+      <div class="footer">just-bash threat model · 08</div>
+    </section>
+
+    <section class="slide" data-notes="Use this slide to keep the presentation credible. just-bash is beta software and the README says to use at your own risk. The threat model is strong because it names residual risk clearly.">
+      <div class="kicker">KNOWN GAPS</div>
+      <h2>残余风险被明确写出来，反而是成熟信号</h2>
+      <p class="subtitle">好的 threat model 不承诺绝对安全；它标注 tradeoffs 和部署条件。</p>
+      <div class="card-grid grid-3">
+        <article class="card small" style="--accent: var(--amber)"><div class="label">Node version edge</div><p>dynamic import() 依赖 Node.js 20.6+ 的 ESM loader hook；更旧版本存在残余风险。</p></article>
+        <article class="card small" style="--accent: var(--cyan)"><div class="label">Secondary layer limits</div><p>pre-captured references、globalThis reassignment 说明 monkey-patching 不是 primary boundary。</p></article>
+        <article class="card small" style="--accent: var(--red)"><div class="label">Opt-in Python</div><p>Python 通过 CPython WASM 隔离，但开启后风险评级为 MEDIUM，仍需 timeout 和边界。</p></article>
+      </div>
+      <div class="card-grid grid-2" style="margin: 24px auto 0; width: 760px">
+        <article class="card small" style="--accent: var(--green); min-height: 116px"><div class="label">Output contexts</div><p>如果把 sandbox 输出渲染到网页，还要考虑 XSS / CSP。</p></article>
+        <article class="card small" style="--accent: var(--green); min-height: 116px"><div class="label">Fuzzing scope</div><p>trap、job control、复杂 heredoc、Unicode edge cases 仍是后续加固点。</p></article>
+      </div>
+      <div class="footer">just-bash threat model · 09</div>
+    </section>
+
+    <section class="slide" data-notes="Convert the threat model into practical advice. The most important operational idea is least privilege: turn on capabilities only when the agent actually needs them.">
+      <div class="kicker">OPERATING GUIDANCE</div>
+      <h2>如果你要把 just-bash 接进 agent，按最小权限启用</h2>
+      <p class="subtitle">默认安全姿态比功能完整性更重要。</p>
+      <div class="guidance">
+        <div class="guide-row"><div class="number">1</div><strong>先用 InMemoryFs 或 OverlayFs</strong><span>让写入可丢弃；需要真实写入时只指向 workspace sandbox。</span></div>
+        <div class="guide-row"><div class="number">2</div><strong>网络默认关闭</strong><span>只给必要 URL prefix 和 HTTP methods；不要轻易 full internet。</span></div>
+        <div class="guide-row"><div class="number">3</div><strong>Python / JS opt-in</strong><span>只有任务需要时打开；配置 timeout、内存和输出处理。</span></div>
+        <div class="guide-row"><div class="number">4</div><strong>customCommands 当 trusted host code</strong><span>自定义命令、fetch、transform plugin 可以绕过 sandbox，必须像生产代码一样审。</span></div>
+        <div class="guide-row"><div class="number">5</div><strong>需要任意二进制时换 VM</strong><span>README 明确建议：需要 full VM / arbitrary binary execution 时用 Vercel Sandbox。</span></div>
+      </div>
+      <div class="footer">just-bash threat model · 10</div>
+    </section>
+
+    <section class="slide" data-notes="Close by tying it back to harness engineering: the shell is the actuator, but the threat model determines how that actuator is bounded, observed, and made safe enough for agentic workflows.">
+      <div class="kicker">TAKEAWAY</div>
+      <h2 style="max-width: 780px">just-bash 不是一个 VM，<br />而是一个可校准的 shell harness。</h2>
+      <p class="subtitle" style="max-width: 720px">它把 agent 熟悉的 bash/filesystem 接口，包进一组明确的边界：虚拟文件系统、命令注册、网络 allow-list、执行上限、数据结构防护和二级逃逸阻断。</p>
+      <div class="takeaway-panel">
+        <h3>Useful</h3>
+        <p>熟悉的 bash action space</p>
+        <h3 style="color: var(--amber)">Bounded</h3>
+        <p>默认关闭危险能力</p>
+        <h3 style="color: var(--cyan)">Observable</h3>
+        <p>stdout / stderr / exit code</p>
+      </div>
+      <div class="source-link">Sources: README · THREAT_MODEL.md · Vercel blog</div>
+      <div class="footer">just-bash threat model · 11</div>
+    </section>
+  </main>
+
+  <div class="notes-panel" id="notes"></div>
+  <div class="controls">
+    <button type="button" id="prev">← Prev</button>
+    <span id="counter">1 / 11</span>
+    <button type="button" id="next">Next →</button>
+    <button type="button" id="toggle-notes">Notes</button>
+  </div>
+  <div class="progress"><div class="progress-bar" id="progress"></div></div>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const counter = document.getElementById("counter");
+    const progress = document.getElementById("progress");
+    const notes = document.getElementById("notes");
+    let index = 0;
+
+    function show(nextIndex) {
+      index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+      counter.textContent = `${index + 1} / ${slides.length}`;
+      progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+      notes.textContent = slides[index].dataset.notes || "";
+      location.hash = `slide-${index + 1}`;
+    }
+
+    function fromHash() {
+      const match = location.hash.match(/slide-(\d+)/);
+      if (match) show(Number(match[1]) - 1);
+      else show(0);
+    }
+
+    document.getElementById("prev").addEventListener("click", () => show(index - 1));
+    document.getElementById("next").addEventListener("click", () => show(index + 1));
+    document.getElementById("toggle-notes").addEventListener("click", () => document.body.classList.toggle("show-notes"));
+    window.addEventListener("hashchange", fromHash);
+    window.addEventListener("keydown", (event) => {
+      if (["ArrowRight", "PageDown", " "].includes(event.key)) {
+        event.preventDefault();
+        show(index + 1);
+      }
+      if (["ArrowLeft", "PageUp"].includes(event.key)) {
+        event.preventDefault();
+        show(index - 1);
+      }
+      if (event.key.toLowerCase() === "n") {
+        document.body.classList.toggle("show-notes");
+      }
+      if (event.key === "Home") show(0);
+      if (event.key === "End") show(slides.length - 1);
+    });
+    fromHash();
+  </script>
+</body>
+</html>

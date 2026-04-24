@@ -1,5 +1,6 @@
-node_modules/
-.env
 .DS_Store
-dist/
-*.log
+code/node_modules/
+code/.env
+code/dist/
+code/*.log
+presentation/**/node_modules/
