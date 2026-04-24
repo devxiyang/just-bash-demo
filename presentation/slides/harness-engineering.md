@@ -283,21 +283,6 @@ Vercel 实验结论：**bash + SQLite 混合 > 纯 bash > bespoke tools**。
 
 ---
 
-## 给我们团队的下一步
-
-<br>
-
-- [ ] TODO: 把 `<X>` 的架构判断编码成 lint/test（**外化模型**）
-- [ ] TODO: 把 `<Y>` 的 CI 输出改成可解析（**可用反馈**）
-- [ ] TODO: 评审现有 agent tools，能换 bash/filesystem 的换掉（**通用接口**）
-- [ ] TODO: 选一个场景建立 self-verification 回路（**验证 > 生成**）
-
-<br>
-
-<span class="small">⚠️ 上台前把 &lt;X&gt; &lt;Y&gt; 换成具体项目/模块。</span>
-
----
-
 ## 我们自己的尝试：Nova X1 incident response
 
 ![bg right:40% contain](../assets/just-bash-interface-layer.png)
